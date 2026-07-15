@@ -153,6 +153,132 @@
     color:var(--text-dim);
     font-size:14px;
   }
+  .btn-primary{
+    background:var(--amber);
+    color:#1b1d1f;
+    border:none;
+    padding:10px 18px;
+    border-radius:4px;
+    font-family:'Inter', sans-serif;
+    font-weight:600;
+    font-size:14px;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .btn-primary:hover{background:#f0a563;}
+  .btn-secundario{
+    background:transparent;
+    color:var(--text-dim);
+    border:1px solid var(--line);
+    padding:10px 18px;
+    border-radius:4px;
+    font-family:'Inter', sans-serif;
+    font-size:14px;
+    cursor:pointer;
+  }
+  .btn-secundario:hover{color:var(--text); border-color:var(--text-dim);}
+  .modal-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.6);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:100;
+    padding:20px;
+  }
+  .modal{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    width:100%;
+    max-width:440px;
+    padding:24px;
+  }
+  .modal-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:18px;
+  }
+  .modal-header h2{
+    font-family:'Space Grotesk', sans-serif;
+    font-size:18px;
+    font-weight:700;
+  }
+  .btn-cerrar{
+    background:none;
+    border:none;
+    color:var(--text-dim);
+    font-size:16px;
+    cursor:pointer;
+    padding:4px 8px;
+  }
+  .btn-cerrar:hover{color:var(--text);}
+  .form-row{
+    margin-bottom:14px;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .form-row label{
+    font-size:12px;
+    color:var(--text-dim);
+    text-transform:uppercase;
+    letter-spacing:0.03em;
+  }
+  .form-row input{
+    background:var(--bg);
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:10px 12px;
+    border-radius:4px;
+    font-family:'Inter', sans-serif;
+    font-size:14px;
+  }
+  .form-row input:focus{outline:none; border-color:var(--amber-dim);}
+  .form-row-split{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+  }
+  .form-row-split > div{display:flex; flex-direction:column; gap:6px;}
+  .form-error{
+    background:rgba(217,99,74,0.1);
+    border:1px solid var(--warn);
+    color:var(--warn);
+    padding:10px 12px;
+    border-radius:4px;
+    font-size:13px;
+    margin-bottom:14px;
+  }
+  .form-actions{
+    display:flex;
+    justify-content:flex-end;
+    gap:10px;
+    margin-top:20px;
+  }
+  .ajuste-cell{
+    text-align:center;
+    white-space:nowrap;
+  }
+  .btn-ajuste{
+    background:var(--bg);
+    border:1px solid var(--line);
+    color:var(--text);
+    width:26px;
+    height:26px;
+    border-radius:4px;
+    font-size:15px;
+    font-family:'IBM Plex Mono', monospace;
+    cursor:pointer;
+    line-height:1;
+  }
+  .btn-ajuste:hover{
+    border-color:var(--amber-dim);
+    color:var(--amber);
+  }
+  .btn-ajuste:first-child{margin-right:6px;}
   footer{
     text-align:center;
     padding:24px;
@@ -177,6 +303,56 @@
     <select id="filtroCategoria">
       <option value="">Todas las categorías</option>
     </select>
+    <button id="btnNuevo" class="btn-primary">+ Nuevo producto</button>
+  </div>
+
+  <div id="modalOverlay" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Nuevo producto</h2>
+        <button id="btnCerrarModal" class="btn-cerrar">✕</button>
+      </div>
+      <form id="formProducto">
+        <div class="form-row">
+          <label>Código</label>
+          <input type="text" id="fCodigo" placeholder="FER-006">
+        </div>
+        <div class="form-row">
+          <label>Nombre *</label>
+          <input type="text" id="fNombre" required placeholder="Destornillador plano 6&quot;">
+        </div>
+        <div class="form-row">
+          <label>Categoría</label>
+          <input type="text" id="fCategoria" placeholder="Herramientas" list="listaCategorias">
+          <datalist id="listaCategorias"></datalist>
+        </div>
+        <div class="form-row form-row-split">
+          <div>
+            <label>Costo (Bs)</label>
+            <input type="number" step="0.01" id="fCosto" placeholder="0.00">
+          </div>
+          <div>
+            <label>Venta (Bs)</label>
+            <input type="number" step="0.01" id="fVenta" placeholder="0.00">
+          </div>
+        </div>
+        <div class="form-row form-row-split">
+          <div>
+            <label>Stock inicial</label>
+            <input type="number" step="1" id="fStock" placeholder="0">
+          </div>
+          <div>
+            <label>Unidad</label>
+            <input type="text" id="fUnidad" placeholder="unidad" value="unidad">
+          </div>
+        </div>
+        <div id="formError" class="form-error" style="display:none"></div>
+        <div class="form-actions">
+          <button type="button" id="btnCancelar" class="btn-secundario">Cancelar</button>
+          <button type="submit" class="btn-primary">Guardar producto</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <table>
@@ -188,10 +364,11 @@
         <th>Stock</th>
         <th style="text-align:right">Costo</th>
         <th style="text-align:right">Venta</th>
+        <th style="text-align:center">Ajustar</th>
       </tr>
     </thead>
     <tbody id="tablaBody">
-      <tr><td colspan="6" class="estado">Conectando con Supabase…</td></tr>
+      <tr><td colspan="7" class="estado">Conectando con Supabase…</td></tr>
     </tbody>
   </table>
 </main>
@@ -220,7 +397,7 @@
     if (errEmpresa){
       document.getElementById('empresaTag').textContent = 'error de conexión';
       document.getElementById('tablaBody').innerHTML =
-        `<tr><td colspan="6" class="estado">No se pudo conectar. Revisá la URL y la key en el código.<br>${errEmpresa.message}</td></tr>`;
+        `<tr><td colspan="7" class="estado">No se pudo conectar. Revisá la URL y la key en el código.<br>${errEmpresa.message}</td></tr>`;
       return;
     }
 
@@ -236,7 +413,7 @@
 
     if (errCatalogo){
       document.getElementById('tablaBody').innerHTML =
-        `<tr><td colspan="6" class="estado">Error al leer catálogo: ${errCatalogo.message}</td></tr>`;
+        `<tr><td colspan="7" class="estado">Error al leer catálogo: ${errCatalogo.message}</td></tr>`;
       return;
     }
 
@@ -247,15 +424,92 @@
   }
 
   function poblarCategorias(){
-    const categorias = [...new Set(productos.map(p => p.categoria))].sort();
+    const categorias = [...new Set(productos.map(p => p.categoria).filter(Boolean))].sort();
     const select = document.getElementById('filtroCategoria');
+    const valorActual = select.value;
+    select.innerHTML = '<option value="">Todas las categorías</option>';
     categorias.forEach(cat => {
       const opt = document.createElement('option');
       opt.value = cat;
       opt.textContent = cat;
       select.appendChild(opt);
     });
+    select.value = valorActual;
+
+    const datalist = document.getElementById('listaCategorias');
+    datalist.innerHTML = '';
+    categorias.forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      datalist.appendChild(opt);
+    });
   }
+
+  // ── Modal nuevo producto ────────────────────────────────────────
+  const modalOverlay = document.getElementById('modalOverlay');
+  const formProducto = document.getElementById('formProducto');
+  const formError = document.getElementById('formError');
+
+  function abrirModal(){
+    formProducto.reset();
+    document.getElementById('fUnidad').value = 'unidad';
+    formError.style.display = 'none';
+    modalOverlay.style.display = 'flex';
+    document.getElementById('fCodigo').focus();
+  }
+
+  function cerrarModal(){
+    modalOverlay.style.display = 'none';
+  }
+
+  document.getElementById('btnNuevo').addEventListener('click', abrirModal);
+  document.getElementById('btnCerrarModal').addEventListener('click', cerrarModal);
+  document.getElementById('btnCancelar').addEventListener('click', cerrarModal);
+  modalOverlay.addEventListener('click', (e) => {
+    if (e.target === modalOverlay) cerrarModal();
+  });
+
+  formProducto.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    formError.style.display = 'none';
+
+    const nuevoProducto = {
+      empresa_id: EMPRESA_ID,
+      codigo: document.getElementById('fCodigo').value.trim() || null,
+      nombre: document.getElementById('fNombre').value.trim(),
+      categoria: document.getElementById('fCategoria').value.trim() || null,
+      precio_costo: parseFloat(document.getElementById('fCosto').value) || 0,
+      precio_venta: parseFloat(document.getElementById('fVenta').value) || 0,
+      stock_actual: parseFloat(document.getElementById('fStock').value) || 0,
+      unidad_medida: document.getElementById('fUnidad').value.trim() || 'unidad',
+      activo: true
+    };
+
+    const submitBtn = formProducto.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Guardando…';
+
+    const { data, error } = await sb
+      .from('catalogo_productos')
+      .insert(nuevoProducto)
+      .select()
+      .single();
+
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Guardar producto';
+
+    if (error){
+      formError.textContent = `No se pudo guardar: ${error.message}`;
+      formError.style.display = 'block';
+      return;
+    }
+
+    productos.push(data);
+    poblarCategorias();
+    renderStats();
+    aplicarFiltros();
+    cerrarModal();
+  });
 
   function renderStats(){
     const totalProductos = productos.length;
@@ -272,7 +526,7 @@
   function renderTabla(lista){
     const tbody = document.getElementById('tablaBody');
     if (lista.length === 0){
-      tbody.innerHTML = `<tr><td colspan="6" class="estado">No se encontraron productos.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="estado">No se encontraron productos.</td></tr>`;
       return;
     }
     tbody.innerHTML = lista.map(p => `
@@ -280,11 +534,36 @@
         <td class="codigo">${p.codigo || '—'}</td>
         <td>${p.nombre}</td>
         <td><span class="categoria-badge">${p.categoria || 'Sin categoría'}</span></td>
-        <td class="stock ${p.stock_actual <= 15 ? 'bajo' : 'ok'}">${p.stock_actual} ${p.unidad_medida}</td>
+        <td class="stock ${p.stock_actual <= 15 ? 'bajo' : 'ok'}" id="stock-${p.id}">${p.stock_actual} ${p.unidad_medida}</td>
         <td class="precio">Bs ${Number(p.precio_costo).toFixed(2)}</td>
         <td class="precio">Bs ${Number(p.precio_venta).toFixed(2)}</td>
+        <td class="ajuste-cell">
+          <button class="btn-ajuste" onclick="ajustarStock('${p.id}', -1)">−</button>
+          <button class="btn-ajuste" onclick="ajustarStock('${p.id}', 1)">+</button>
+        </td>
       </tr>
     `).join('');
+  }
+
+  async function ajustarStock(id, delta){
+    const producto = productos.find(p => p.id === id);
+    if (!producto) return;
+
+    const nuevoStock = Math.max(0, producto.stock_actual + delta);
+
+    const { error } = await sb
+      .from('catalogo_productos')
+      .update({ stock_actual: nuevoStock })
+      .eq('id', id);
+
+    if (error){
+      alert(`No se pudo actualizar el stock: ${error.message}`);
+      return;
+    }
+
+    producto.stock_actual = nuevoStock;
+    renderStats();
+    aplicarFiltros();
   }
 
   function aplicarFiltros(){
