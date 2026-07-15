@@ -1,11 +1,310 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Almacén Inventario</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Almacén — Inventario</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #1b1d1f;
+    --bg-panel: #232629;
+    --bg-panel-hover: #292c30;
+    --line: #34383c;
+    --text: #ece8e0;
+    --text-dim: #9a9d9f;
+    --amber: #e8934a;
+    --amber-dim: #6b5138;
+    --ok: #7fb069;
+    --warn: #d9634a;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+  }
+  header{
+    border-bottom:1px solid var(--line);
+    padding:22px 28px;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  .brand{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:22px;
+    letter-spacing:-0.01em;
+  }
+  .brand span{color:var(--amber);}
+  .empresa-tag{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--text-dim);
+    border:1px solid var(--line);
+    padding:4px 10px;
+    border-radius:3px;
+  }
+  main{
+    max-width:1100px;
+    margin:0 auto;
+    padding:28px;
+  }
+  .toolbar{
+    display:flex;
+    gap:10px;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+  }
+  .toolbar input, .toolbar select{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:10px 14px;
+    border-radius:4px;
+    font-family:'Inter', sans-serif;
+    font-size:14px;
+  }
+  .toolbar input{flex:1; min-width:220px;}
+  .toolbar input:focus, .toolbar select:focus{
+    outline:none;
+    border-color:var(--amber-dim);
+  }
+  .stats{
+    display:flex;
+    gap:14px;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+  }
+  .stat{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:14px 18px;
+    min-width:130px;
+  }
+  .stat .num{
+    font-family:'Space Grotesk', sans-serif;
+    font-size:26px;
+    font-weight:700;
+    color:var(--amber);
+  }
+  .stat .label{
+    font-size:12px;
+    color:var(--text-dim);
+    margin-top:2px;
+  }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:6px;
+    overflow:hidden;
+  }
+  thead th{
+    text-align:left;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    color:var(--text-dim);
+    padding:12px 16px;
+    border-bottom:1px solid var(--line);
+    font-weight:500;
+  }
+  tbody td{
+    padding:13px 16px;
+    border-bottom:1px solid var(--line);
+    font-size:14px;
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--bg-panel-hover);}
+  .codigo{
+    font-family:'IBM Plex Mono', monospace;
+    color:var(--text-dim);
+    font-size:13px;
+  }
+  .categoria-badge{
+    display:inline-block;
+    font-size:11px;
+    padding:3px 9px;
+    border-radius:20px;
+    border:1px solid var(--amber-dim);
+    color:var(--amber);
+    background:rgba(232,147,74,0.08);
+  }
+  .stock{
+    font-family:'IBM Plex Mono', monospace;
+  }
+  .stock.bajo{color:var(--warn);}
+  .stock.ok{color:var(--ok);}
+  .precio{
+    font-family:'IBM Plex Mono', monospace;
+    text-align:right;
+  }
+  .estado{
+    text-align:center;
+    padding:60px 20px;
+    color:var(--text-dim);
+    font-size:14px;
+  }
+  footer{
+    text-align:center;
+    padding:24px;
+    color:var(--text-dim);
+    font-size:12px;
+    font-family:'IBM Plex Mono', monospace;
+  }
+</style>
 </head>
 <body>
-  <h1>Hola, esto funciona 🎉</h1>
-  <p>Repo conectado correctamente a GitHub Pages.</p>
+
+<header>
+  <div class="brand">almacén<span>·</span>inventario</div>
+  <div class="empresa-tag" id="empresaTag">cargando empresa…</div>
+</header>
+
+<main>
+  <div class="stats" id="stats"></div>
+
+  <div class="toolbar">
+    <input type="text" id="buscador" placeholder="Buscar por nombre o código…">
+    <select id="filtroCategoria">
+      <option value="">Todas las categorías</option>
+    </select>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Código</th>
+        <th>Producto</th>
+        <th>Categoría</th>
+        <th>Stock</th>
+        <th style="text-align:right">Costo</th>
+        <th style="text-align:right">Venta</th>
+      </tr>
+    </thead>
+    <tbody id="tablaBody">
+      <tr><td colspan="6" class="estado">Conectando con Supabase…</td></tr>
+    </tbody>
+  </table>
+</main>
+
+<footer>almacén·inventario — prototipo v1</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  // ── Configuración de conexión ──────────────────────────────────
+  const SUPABASE_URL = 'https://pgjwerbixkbbyqamsicp.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_36d4hftRPT8XEoOR7Vm-Rw_TBQAkMBy';
+  const EMPRESA_ID = '11111111-1111-1111-1111-111111111111'; // Ferretería Demo
+
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let productos = [];
+
+  async function cargarDatos(){
+    // Nombre de la empresa
+    const { data: empresa, error: errEmpresa } = await sb
+      .from('empresas')
+      .select('nombre, rubro')
+      .eq('id', EMPRESA_ID)
+      .single();
+
+    if (errEmpresa){
+      document.getElementById('empresaTag').textContent = 'error de conexión';
+      document.getElementById('tablaBody').innerHTML =
+        `<tr><td colspan="6" class="estado">No se pudo conectar. Revisá la URL y la key en el código.<br>${errEmpresa.message}</td></tr>`;
+      return;
+    }
+
+    document.getElementById('empresaTag').textContent = `${empresa.nombre} · ${empresa.rubro}`;
+
+    // Catálogo
+    const { data: catalogo, error: errCatalogo } = await sb
+      .from('catalogo_productos')
+      .select('*')
+      .eq('empresa_id', EMPRESA_ID)
+      .eq('activo', true)
+      .order('codigo');
+
+    if (errCatalogo){
+      document.getElementById('tablaBody').innerHTML =
+        `<tr><td colspan="6" class="estado">Error al leer catálogo: ${errCatalogo.message}</td></tr>`;
+      return;
+    }
+
+    productos = catalogo;
+    poblarCategorias();
+    renderStats();
+    renderTabla(productos);
+  }
+
+  function poblarCategorias(){
+    const categorias = [...new Set(productos.map(p => p.categoria))].sort();
+    const select = document.getElementById('filtroCategoria');
+    categorias.forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.textContent = cat;
+      select.appendChild(opt);
+    });
+  }
+
+  function renderStats(){
+    const totalProductos = productos.length;
+    const stockBajo = productos.filter(p => p.stock_actual <= 15).length;
+    const valorInventario = productos.reduce((acc, p) => acc + (p.precio_costo * p.stock_actual), 0);
+
+    document.getElementById('stats').innerHTML = `
+      <div class="stat"><div class="num">${totalProductos}</div><div class="label">productos activos</div></div>
+      <div class="stat"><div class="num">${stockBajo}</div><div class="label">con stock bajo</div></div>
+      <div class="stat"><div class="num">Bs ${valorInventario.toLocaleString('es-BO', {maximumFractionDigits:0})}</div><div class="label">valor de inventario</div></div>
+    `;
+  }
+
+  function renderTabla(lista){
+    const tbody = document.getElementById('tablaBody');
+    if (lista.length === 0){
+      tbody.innerHTML = `<tr><td colspan="6" class="estado">No se encontraron productos.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = lista.map(p => `
+      <tr>
+        <td class="codigo">${p.codigo || '—'}</td>
+        <td>${p.nombre}</td>
+        <td><span class="categoria-badge">${p.categoria || 'Sin categoría'}</span></td>
+        <td class="stock ${p.stock_actual <= 15 ? 'bajo' : 'ok'}">${p.stock_actual} ${p.unidad_medida}</td>
+        <td class="precio">Bs ${Number(p.precio_costo).toFixed(2)}</td>
+        <td class="precio">Bs ${Number(p.precio_venta).toFixed(2)}</td>
+      </tr>
+    `).join('');
+  }
+
+  function aplicarFiltros(){
+    const texto = document.getElementById('buscador').value.toLowerCase();
+    const categoria = document.getElementById('filtroCategoria').value;
+
+    const filtrados = productos.filter(p => {
+      const coincideTexto = p.nombre.toLowerCase().includes(texto) || (p.codigo || '').toLowerCase().includes(texto);
+      const coincideCategoria = !categoria || p.categoria === categoria;
+      return coincideTexto && coincideCategoria;
+    });
+
+    renderTabla(filtrados);
+  }
+
+  document.getElementById('buscador').addEventListener('input', aplicarFiltros);
+  document.getElementById('filtroCategoria').addEventListener('change', aplicarFiltros);
+
+  cargarDatos();
+</script>
+
 </body>
 </html>
