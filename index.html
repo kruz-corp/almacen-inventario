@@ -345,6 +345,27 @@
     color:var(--text);
   }
   .import-resumen b{color:var(--amber);}
+  .tabla-duplicados{
+    margin-top:12px;
+    max-height:220px;
+    overflow-y:auto;
+    border:1px solid var(--line);
+    border-radius:4px;
+  }
+  .tabla-duplicados table{
+    width:100%;
+    border:none;
+    border-radius:0;
+  }
+  .tabla-duplicados th{
+    position:sticky;
+    top:0;
+    background:var(--bg-panel);
+  }
+  .tabla-duplicados td, .tabla-duplicados th{
+    padding:8px 10px;
+    font-size:12px;
+  }
   footer{
     text-align:center;
     padding:24px;
@@ -882,6 +903,49 @@
       .normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // saca tildes
   }
 
+  function normalizarTexto(str){
+    return (str || '').toString().trim().toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function detectarDuplicados(filasMapeadas){
+    // Mapas del catálogo YA existente en Supabase (para comparar contra lo cargado)
+    const codigosExistentes = new Map(); // codigo normalizado -> nombre original del producto existente
+    const nombresExistentes = new Map();
+    productos.forEach(p => {
+      if (p.codigo) codigosExistentes.set(normalizarTexto(p.codigo), p.nombre);
+      nombresExistentes.set(normalizarTexto(p.nombre), p.nombre);
+    });
+
+    const duplicados = [];
+    const codigosVistosEnArchivo = new Map(); // codigo normalizado -> fila número
+    const nombresVistosEnArchivo = new Map();
+
+    filasMapeadas.forEach((fila, idx) => {
+      const numeroFila = idx + 2; // +2 porque la fila 1 es el encabezado del Excel
+      const codigoNorm = fila.codigo ? normalizarTexto(fila.codigo) : null;
+      const nombreNorm = normalizarTexto(fila.nombre);
+
+      // ¿Ya existe en el catálogo de Supabase?
+      if (codigoNorm && codigosExistentes.has(codigoNorm)){
+        duplicados.push({ fila: numeroFila, codigo: fila.codigo, nombre: fila.nombre, motivo: `El código ya existe en el catálogo (producto: "${codigosExistentes.get(codigoNorm)}")` });
+      } else if (nombresExistentes.has(nombreNorm)){
+        duplicados.push({ fila: numeroFila, codigo: fila.codigo, nombre: fila.nombre, motivo: `Ya existe un producto con este nombre en el catálogo` });
+      }
+      // ¿Está repetido dentro del mismo archivo?
+      else if (codigoNorm && codigosVistosEnArchivo.has(codigoNorm)){
+        duplicados.push({ fila: numeroFila, codigo: fila.codigo, nombre: fila.nombre, motivo: `Código repetido en la fila ${codigosVistosEnArchivo.get(codigoNorm)} del mismo archivo` });
+      } else if (nombresVistosEnArchivo.has(nombreNorm)){
+        duplicados.push({ fila: numeroFila, codigo: fila.codigo, nombre: fila.nombre, motivo: `Nombre repetido en la fila ${nombresVistosEnArchivo.get(nombreNorm)} del mismo archivo` });
+      }
+
+      if (codigoNorm) codigosVistosEnArchivo.set(codigoNorm, numeroFila);
+      nombresVistosEnArchivo.set(nombreNorm, numeroFila);
+    });
+
+    return duplicados;
+  }
+
   function mapearFila(fila){
     // Acepta encabezados en español con o sin tilde, mayúsculas/minúsculas
     const normalizado = {};
@@ -938,6 +1002,32 @@
 
       if (filasMapeadas.length === 0){
         importResumen.innerHTML = `<b>No se encontró ninguna fila válida.</b> Revisá que el Excel tenga una columna "Nombre".`;
+        return;
+      }
+
+      // ── Validación de duplicados: bloquea TODO el archivo si encuentra alguno ──
+      const duplicados = detectarDuplicados(filasMapeadas);
+
+      if (duplicados.length > 0){
+        importResumen.innerHTML = `
+          <b>⚠ Se encontraron ${duplicados.length} producto(s) duplicado(s). No se importó nada.</b>
+          <div class="tabla-duplicados">
+            <table>
+              <thead><tr><th>Fila</th><th>Código</th><th>Nombre</th><th>Motivo</th></tr></thead>
+              <tbody>
+                ${duplicados.map(d => `
+                  <tr>
+                    <td>${d.fila}</td>
+                    <td class="codigo">${d.codigo || '—'}</td>
+                    <td>${d.nombre}</td>
+                    <td>${d.motivo}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:10px; color:var(--text-dim)">Corregí estas filas en el Excel (código o nombre) y volvé a subir el archivo.</p>
+        `;
         return;
       }
 
