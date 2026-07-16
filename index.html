@@ -470,6 +470,7 @@
   let productos = [];
   let EMPRESA_ID = null;
   let usuarioActual = null;
+  let permisosActuales = { puede_ver: false, puede_editar: false, puede_eliminar: false };
 
   // ── Autenticación ────────────────────────────────────────────────
   const loginScreen = document.getElementById('loginScreen');
@@ -501,12 +502,48 @@
     usuarioActual = usuario;
     EMPRESA_ID = usuario.empresa_id;
 
+    // Buscar el permiso del rol para el módulo de inventario
+    const { data: permiso } = await sb
+      .from('permisos_modulo')
+      .select('puede_ver, puede_editar, puede_eliminar')
+      .eq('rol_id', usuario.rol_id)
+      .eq('modulo', 'inventario')
+      .maybeSingle();
+
+    permisosActuales = permiso || { puede_ver: false, puede_editar: false, puede_eliminar: false };
+
+    if (!permisosActuales.puede_ver){
+      loginScreen.style.display = 'none';
+      appScreen.style.display = 'none';
+      mostrarSinPermiso(usuario);
+      return;
+    }
+
     loginScreen.style.display = 'none';
     appScreen.style.display = 'block';
     document.getElementById('empresaTag').textContent =
       `${usuario.empresas.nombre} · ${usuario.nombre_completo}`;
 
+    document.getElementById('btnNuevo').style.display =
+      permisosActuales.puede_editar ? 'inline-block' : 'none';
+
     cargarDatos();
+  }
+
+  function mostrarSinPermiso(usuario){
+    document.body.insertAdjacentHTML('beforeend', `
+      <div id="sinPermisoScreen" class="login-screen">
+        <div class="login-box">
+          <div class="brand">almacén<span>·</span>inventario</div>
+          <div class="login-sub">Hola, ${usuario.nombre_completo}. Tu rol no tiene acceso a este módulo.</div>
+          <button id="btnLogoutSinPermiso" class="btn-primary btn-full">Cerrar sesión</button>
+        </div>
+      </div>
+    `);
+    document.getElementById('btnLogoutSinPermiso').addEventListener('click', async () => {
+      await sb.auth.signOut();
+      location.reload();
+    });
   }
 
   formLogin.addEventListener('submit', async (e) => {
@@ -611,7 +648,7 @@
     formError.style.display = 'none';
     modalTitulo.textContent = 'Editar producto';
     btnGuardarProducto.textContent = 'Guardar cambios';
-    btnEliminar.style.display = 'inline-block';
+    btnEliminar.style.display = permisosActuales.puede_eliminar ? 'inline-block' : 'none';
 
     document.getElementById('fCodigo').value = producto.codigo || '';
     document.getElementById('fNombre').value = producto.nombre || '';
@@ -754,9 +791,11 @@
         <td class="precio">Bs ${Number(p.precio_costo).toFixed(2)}</td>
         <td class="precio">Bs ${Number(p.precio_venta).toFixed(2)}</td>
         <td class="ajuste-cell">
-          <button class="btn-ajuste" onclick="ajustarStock('${p.id}', -1)">−</button>
-          <button class="btn-ajuste" onclick="ajustarStock('${p.id}', 1)">+</button>
-          <button class="btn-ajuste" onclick="abrirModalEdicion('${p.id}')" title="Editar">✎</button>
+          ${permisosActuales.puede_editar ? `
+            <button class="btn-ajuste" onclick="ajustarStock('${p.id}', -1)">−</button>
+            <button class="btn-ajuste" onclick="ajustarStock('${p.id}', 1)">+</button>
+            <button class="btn-ajuste" onclick="abrirModalEdicion('${p.id}')" title="Editar">✎</button>
+          ` : '<span style="color:var(--text-dim)">—</span>'}
         </td>
       </tr>
     `).join('');
