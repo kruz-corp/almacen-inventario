@@ -335,6 +335,16 @@
     align-items:center;
     gap:10px;
   }
+  .import-resumen{
+    background:var(--bg-panel);
+    border:1px solid var(--amber-dim);
+    border-radius:6px;
+    padding:14px 18px;
+    margin-bottom:16px;
+    font-size:13px;
+    color:var(--text);
+  }
+  .import-resumen b{color:var(--amber);}
   footer{
     text-align:center;
     padding:24px;
@@ -383,8 +393,13 @@
     <select id="filtroCategoria">
       <option value="">Todas las categorías</option>
     </select>
+    <button id="btnExportar" class="btn-secundario">⭳ Exportar Excel</button>
+    <button id="btnImportar" class="btn-secundario">⭱ Importar Excel</button>
+    <input type="file" id="fileImportar" accept=".xlsx,.xls" style="display:none">
     <button id="btnNuevo" class="btn-primary">+ Nuevo producto</button>
   </div>
+
+  <div id="importResumen" class="import-resumen" style="display:none"></div>
 
   <div id="modalOverlay" class="modal-overlay" style="display:none">
     <div class="modal">
@@ -460,6 +475,7 @@
 <footer>almacén·inventario — prototipo v1</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
   // ── Configuración de conexión ──────────────────────────────────
   const SUPABASE_URL = 'https://pgjwerbixkbbyqamsicp.supabase.co';
@@ -525,6 +541,8 @@
       `${usuario.empresas.nombre} · ${usuario.nombre_completo}`;
 
     document.getElementById('btnNuevo').style.display =
+      permisosActuales.puede_editar ? 'inline-block' : 'none';
+    document.getElementById('btnImportar').style.display =
       permisosActuales.puede_editar ? 'inline-block' : 'none';
 
     cargarDatos();
@@ -834,6 +852,136 @@
 
     renderTabla(filtrados);
   }
+
+  // ── Exportar a Excel ────────────────────────────────────────────
+  document.getElementById('btnExportar').addEventListener('click', () => {
+    const filas = productos.map(p => ({
+      'Código': p.codigo || '',
+      'Nombre': p.nombre,
+      'Categoría': p.categoria || '',
+      'Costo': p.precio_costo,
+      'Venta': p.precio_venta,
+      'Stock': p.stock_actual,
+      'Unidad': p.unidad_medida
+    }));
+
+    const hoja = XLSX.utils.json_to_sheet(filas);
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, 'Catálogo');
+
+    const fecha = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(libro, `catalogo_${fecha}.xlsx`);
+  });
+
+  // ── Importar desde Excel ────────────────────────────────────────
+  const fileImportar = document.getElementById('fileImportar');
+  const importResumen = document.getElementById('importResumen');
+
+  function normalizarHeader(str){
+    return str.toString().trim().toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // saca tildes
+  }
+
+  function mapearFila(fila){
+    // Acepta encabezados en español con o sin tilde, mayúsculas/minúsculas
+    const normalizado = {};
+    Object.keys(fila).forEach(key => {
+      normalizado[normalizarHeader(key)] = fila[key];
+    });
+
+    const buscar = (...alias) => {
+      for (const a of alias){
+        if (normalizado[a] !== undefined && normalizado[a] !== '') return normalizado[a];
+      }
+      return undefined;
+    };
+
+    return {
+      codigo: buscar('codigo', 'código', 'cod') || null,
+      nombre: buscar('nombre', 'producto', 'descripcion') || '',
+      categoria: buscar('categoria', 'categoría', 'rubro') || null,
+      precio_costo: parseFloat(buscar('costo', 'precio costo', 'precio_costo')) || 0,
+      precio_venta: parseFloat(buscar('venta', 'precio venta', 'precio_venta')) || 0,
+      stock_actual: parseFloat(buscar('stock', 'stock actual', 'cantidad')) || 0,
+      unidad_medida: buscar('unidad', 'unidad medida', 'unidad_medida') || 'unidad'
+    };
+  }
+
+  document.getElementById('btnImportar').addEventListener('click', () => {
+    fileImportar.value = '';
+    fileImportar.click();
+  });
+
+  fileImportar.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    importResumen.style.display = 'block';
+    importResumen.innerHTML = 'Leyendo archivo…';
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const libro = XLSX.read(buffer, { type: 'array' });
+      const primeraHoja = libro.Sheets[libro.SheetNames[0]];
+      const filasCrudas = XLSX.utils.sheet_to_json(primeraHoja, { defval: '' });
+
+      if (filasCrudas.length === 0){
+        importResumen.innerHTML = '<b>El archivo no tiene filas para importar.</b>';
+        return;
+      }
+
+      const filasMapeadas = filasCrudas
+        .map(mapearFila)
+        .filter(f => f.nombre && f.nombre.trim() !== '');
+
+      const filasInvalidas = filasCrudas.length - filasMapeadas.length;
+
+      if (filasMapeadas.length === 0){
+        importResumen.innerHTML = `<b>No se encontró ninguna fila válida.</b> Revisá que el Excel tenga una columna "Nombre".`;
+        return;
+      }
+
+      const confirmado = confirm(
+        `Se van a importar ${filasMapeadas.length} productos` +
+        (filasInvalidas > 0 ? ` (${filasInvalidas} filas se descartaron por no tener nombre)` : '') +
+        `. ¿Confirmás?`
+      );
+
+      if (!confirmado){
+        importResumen.style.display = 'none';
+        return;
+      }
+
+      importResumen.innerHTML = 'Importando…';
+
+      const filasParaInsertar = filasMapeadas.map(f => ({
+        ...f,
+        empresa_id: EMPRESA_ID,
+        activo: true
+      }));
+
+      const { data, error } = await sb
+        .from('catalogo_productos')
+        .insert(filasParaInsertar)
+        .select();
+
+      if (error){
+        importResumen.innerHTML = `<b>Error al importar:</b> ${error.message}`;
+        return;
+      }
+
+      productos.push(...data);
+      poblarCategorias();
+      renderStats();
+      aplicarFiltros();
+
+      importResumen.innerHTML = `<b>${data.length} productos importados correctamente.</b>` +
+        (filasInvalidas > 0 ? ` ${filasInvalidas} filas se descartaron por no tener nombre.` : '');
+
+    } catch (err){
+      importResumen.innerHTML = `<b>Error al leer el archivo:</b> ${err.message}`;
+    }
+  });
 
   document.getElementById('buscador').addEventListener('input', aplicarFiltros);
   document.getElementById('filtroCategoria').addEventListener('change', aplicarFiltros);
