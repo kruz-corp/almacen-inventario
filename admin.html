@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Panel Admin — Onboarding</title>
+<title>SGC — Panel Admin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -72,6 +72,13 @@
   td{padding:8px 10px; border-bottom:1px solid var(--line);}
   .codigo-mono{font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--text-dim);}
   .hint{font-size:12px; color:var(--text-dim); margin-top:6px; line-height:1.5;}
+  .checkbox-modulos{display:flex; gap:18px; margin-top:12px; flex-wrap:wrap;}
+  .checkbox-modulos label{display:flex; align-items:center; gap:8px; font-size:14px; cursor:pointer;}
+  .checkbox-modulos input{width:16px; height:16px; cursor:pointer;}
+  .tabla-permisos{margin-top:16px;}
+  .tabla-permisos th{text-align:left; padding:8px 10px; font-size:11px; text-transform:uppercase; color:var(--text-dim); border-bottom:1px solid var(--line);}
+  .tabla-permisos td{padding:8px 10px; border-bottom:1px solid var(--line);}
+  .tabla-permisos td input{width:16px; height:16px; cursor:pointer;}
   .btn-logout{background:none; border:1px solid var(--line); color:var(--text-dim); padding:6px 12px; border-radius:4px; font-size:12px; cursor:pointer;}
   .btn-logout:hover{color:var(--text); border-color:var(--text-dim);}
 </style>
@@ -80,7 +87,7 @@
 
 <div id="loginScreen" class="login-screen">
   <div class="login-box">
-    <div class="brand">almacén<span>·</span>inventario</div>
+    <div class="brand">SGC<span>·</span>Admin</div>
     <div class="login-sub">Panel de administración — acceso restringido</div>
     <form id="formLogin">
       <div class="form-row">
@@ -99,7 +106,7 @@
 
 <div id="sinAccesoScreen" class="login-screen" style="display:none">
   <div class="login-box">
-    <div class="brand">almacén<span>·</span>inventario</div>
+    <div class="brand">SGC<span>·</span>Admin</div>
     <div class="login-sub">Esta cuenta inició sesión correctamente, pero no tiene permisos de superadmin para este panel.</div>
     <button id="btnLogoutSinAcceso" class="btn-primary btn-full">Cerrar sesión</button>
   </div>
@@ -108,7 +115,7 @@
 <div id="appScreen" style="display:none">
 
 <header>
-  <div><span class="brand">almacén<span>·</span>inventario</span><span class="badge-admin">panel admin</span></div>
+  <div><span class="brand">SGC<span>·</span>Admin</span><span class="badge-admin">panel admin</span></div>
   <button id="btnLogout" class="btn-logout">Salir</button>
 </header>
 
@@ -188,6 +195,49 @@
   </div>
 
   <div class="panel">
+    <h2>Módulos activos de una empresa</h2>
+    <div class="sub">Qué módulos tiene contratados cada empresa. Un usuario nunca ve un módulo que su empresa no tenga activo acá, aunque su rol tenga permiso.</div>
+
+    <div class="form-row">
+      <label>Empresa *</label>
+      <select id="fModulosEmpresa"></select>
+    </div>
+    <div class="checkbox-modulos" id="checkboxModulosEmpresa"></div>
+    <div id="modulosError" class="form-error" style="display:none"></div>
+    <div id="modulosOk" class="form-ok" style="display:none"></div>
+    <button type="button" id="btnGuardarModulos" class="btn-primary" style="margin-top:14px">Guardar módulos activos</button>
+  </div>
+
+  <div class="panel">
+    <h2>Crear rol personalizado</h2>
+    <div class="sub">Ej: "Ventas" con acceso a Ventas + Crédito, "Almacén" con solo Inventario. Definí exactamente qué puede hacer en cada módulo.</div>
+
+    <form id="formNuevoRol">
+      <div class="form-row-split">
+        <div class="form-row">
+          <label>Empresa *</label>
+          <select id="fRolEmpresa"></select>
+        </div>
+        <div class="form-row">
+          <label>Nombre del rol *</label>
+          <input type="text" id="fRolNombre" required placeholder="Ventas">
+        </div>
+      </div>
+
+      <table class="tabla-permisos">
+        <thead><tr><th>Módulo</th><th>Ver</th><th>Editar</th><th>Eliminar</th></tr></thead>
+        <tbody id="filasPermisosRol">
+          <!-- generado por JS a partir de MODULOS -->
+        </tbody>
+      </table>
+
+      <div id="rolError" class="form-error" style="display:none"></div>
+      <div id="rolOk" class="form-ok" style="display:none"></div>
+      <button type="submit" id="btnCrearRol" class="btn-primary" style="margin-top:14px">Crear rol</button>
+    </form>
+  </div>
+
+  <div class="panel">
     <h2>Empresas existentes</h2>
     <div class="sub">Vista rápida de referencia.</div>
     <table>
@@ -232,7 +282,16 @@
 
     cargarEmpresas();
     cargarSelectEmpresas();
+    cargarSelectModulosEmpresa();
+    cargarSelectRolEmpresa();
   }
+
+  // Módulos disponibles en el producto (agregar acá cuando exista uno nuevo)
+  const MODULOS_DISPONIBLES = [
+    { clave: 'inventario', titulo: 'Inventario' },
+    { clave: 'ventas', titulo: 'Ventas · POS' },
+    { clave: 'credito', titulo: 'Crédito' }
+  ];
 
   document.getElementById('formLogin').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -295,6 +354,121 @@
     const select = document.getElementById('fUsuarioRol');
     select.innerHTML = (data || []).map(r => `<option value="${r.id}">${r.nombre}</option>`).join('');
   }
+
+  // ── Módulos activos por empresa ───────────────────────────────────
+  async function cargarSelectModulosEmpresa(){
+    const { data } = await sb.from('empresas').select('id, nombre').order('nombre');
+    const select = document.getElementById('fModulosEmpresa');
+    select.innerHTML = (data || []).map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
+    if (data && data.length > 0) cargarCheckboxModulos(data[0].id);
+  }
+
+  document.getElementById('fModulosEmpresa').addEventListener('change', (e) => {
+    cargarCheckboxModulos(e.target.value);
+  });
+
+  async function cargarCheckboxModulos(empresaId){
+    const { data: config } = await sb
+      .from('empresa_config').select('modulos_activos').eq('empresa_id', empresaId).single();
+    const activos = config?.modulos_activos || [];
+
+    document.getElementById('checkboxModulosEmpresa').innerHTML = MODULOS_DISPONIBLES.map(m => `
+      <label>
+        <input type="checkbox" value="${m.clave}" ${activos.includes(m.clave) ? 'checked' : ''}>
+        ${m.titulo}
+      </label>
+    `).join('');
+  }
+
+  document.getElementById('btnGuardarModulos').addEventListener('click', async () => {
+    const modulosError = document.getElementById('modulosError');
+    const modulosOk = document.getElementById('modulosOk');
+    modulosError.style.display = 'none';
+    modulosOk.style.display = 'none';
+
+    const empresaId = document.getElementById('fModulosEmpresa').value;
+    const seleccionados = Array.from(document.querySelectorAll('#checkboxModulosEmpresa input:checked')).map(el => el.value);
+
+    const { error } = await sb
+      .from('empresa_config')
+      .update({ modulos_activos: seleccionados })
+      .eq('empresa_id', empresaId);
+
+    if (error){
+      modulosError.textContent = `No se pudo guardar: ${error.message}`;
+      modulosError.style.display = 'block';
+      return;
+    }
+
+    modulosOk.textContent = 'Módulos activos actualizados correctamente.';
+    modulosOk.style.display = 'block';
+  });
+
+  // ── Crear rol personalizado ───────────────────────────────────────
+  async function cargarSelectRolEmpresa(){
+    const { data } = await sb.from('empresas').select('id, nombre').order('nombre');
+    const select = document.getElementById('fRolEmpresa');
+    select.innerHTML = (data || []).map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
+  }
+
+  document.getElementById('filasPermisosRol').innerHTML = MODULOS_DISPONIBLES.map(m => `
+    <tr data-modulo="${m.clave}">
+      <td>${m.titulo}</td>
+      <td><input type="checkbox" class="chk-ver"></td>
+      <td><input type="checkbox" class="chk-editar"></td>
+      <td><input type="checkbox" class="chk-eliminar"></td>
+    </tr>
+  `).join('');
+
+  document.getElementById('formNuevoRol').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const rolError = document.getElementById('rolError');
+    const rolOk = document.getElementById('rolOk');
+    rolError.style.display = 'none';
+    rolOk.style.display = 'none';
+    const btn = document.getElementById('btnCrearRol');
+    btn.disabled = true; btn.textContent = 'Creando…';
+
+    const empresaId = document.getElementById('fRolEmpresa').value;
+    const nombreRol = document.getElementById('fRolNombre').value.trim();
+
+    const filas = Array.from(document.querySelectorAll('#filasPermisosRol tr'));
+    const permisos = filas.map(fila => ({
+      modulo: fila.dataset.modulo,
+      puede_ver: fila.querySelector('.chk-ver').checked,
+      puede_editar: fila.querySelector('.chk-editar').checked,
+      puede_eliminar: fila.querySelector('.chk-eliminar').checked
+    }));
+
+    if (!permisos.some(p => p.puede_ver)){
+      rolError.textContent = 'Marcá al menos un módulo con "Ver" para que el rol tenga sentido.';
+      rolError.style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Crear rol';
+      return;
+    }
+
+    try {
+      const { data: rol, error: errRol } = await sb
+        .from('roles').insert({ empresa_id: empresaId, nombre: nombreRol }).select().single();
+      if (errRol) throw new Error(`Rol: ${errRol.message}`);
+
+      const filasPermisos = permisos.map(p => ({ rol_id: rol.id, ...p }));
+      const { error: errPermisos } = await sb.from('permisos_modulo').insert(filasPermisos);
+      if (errPermisos) throw new Error(`Permisos: ${errPermisos.message}`);
+
+      rolOk.innerHTML = `Rol <b>"${nombreRol}"</b> creado correctamente. Ya lo podés asignar a un usuario desde "Agregar usuario a empresa existente".`;
+      rolOk.style.display = 'block';
+      document.getElementById('formNuevoRol').reset();
+      document.querySelectorAll('#filasPermisosRol input').forEach(el => el.checked = false);
+      cargarSelectRoles(document.getElementById('fUsuarioEmpresa').value);
+
+    } catch (err){
+      rolError.textContent = `No se pudo crear el rol: ${err.message}`;
+      rolError.style.display = 'block';
+    }
+
+    btn.disabled = false; btn.textContent = 'Crear rol';
+  });
 
   // ── Crear empresa nueva completa ────────────────────────────────
   document.getElementById('formNuevaEmpresa').addEventListener('submit', async (e) => {

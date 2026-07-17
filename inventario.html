@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Almacén — Inventario</title>
+<title>SGC — Inventario</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -377,9 +377,11 @@
 </head>
 <body>
 
-<div id="loginScreen" class="login-screen">
+<div id="cargandoScreen" class="login-screen"><div style="color:var(--text-dim); font-size:13px">Cargando…</div></div>
+
+<div id="loginScreen" class="login-screen" style="display:none">
   <div class="login-box">
-    <div class="brand">almacén<span>·</span>inventario</div>
+    <div class="brand">SGC<span>·</span>Inventario</div>
     <div class="login-sub">Iniciá sesión para ver tu inventario</div>
     <form id="formLogin">
       <div class="form-row">
@@ -399,7 +401,7 @@
 <div id="appScreen" style="display:none">
 
 <header>
-  <div class="brand">almacén<span>·</span>inventario</div>
+  <div class="brand">SGC<span>·</span>Inventario</div>
   <div class="header-right">
     <div class="empresa-tag" id="empresaTag">cargando empresa…</div>
     <button id="btnLogout" class="btn-logout">Salir</button>
@@ -493,7 +495,7 @@
 
 </div>
 
-<footer>almacén·inventario — prototipo v1</footer>
+<footer>SGC · Sistema de Gestión Comercial — módulo Inventario</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -517,8 +519,11 @@
 
   async function iniciarSesionSiExiste(){
     const { data: { session } } = await sb.auth.getSession();
+    document.getElementById('cargandoScreen').style.display = 'none';
     if (session){
       await entrarConUsuario(session.user);
+    } else {
+      document.getElementById('loginScreen').style.display = 'flex';
     }
   }
 
@@ -573,7 +578,7 @@
     document.body.insertAdjacentHTML('beforeend', `
       <div id="sinPermisoScreen" class="login-screen">
         <div class="login-box">
-          <div class="brand">almacén<span>·</span>inventario</div>
+          <div class="brand">SGC<span>·</span>Inventario</div>
           <div class="login-sub">Hola, ${usuario.nombre_completo}. Tu rol no tiene acceso a este módulo.</div>
           <button id="btnLogoutSinPermiso" class="btn-primary btn-full">Cerrar sesión</button>
         </div>
