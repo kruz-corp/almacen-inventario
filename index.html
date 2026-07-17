@@ -162,9 +162,11 @@
   </aside>
 
   <main id="mainContent">
+    <section id="view-inicio" class="view"></section>
     <section id="view-inventario" class="view"></section>
     <section id="view-ventas" class="view"></section>
     <section id="view-credito" class="view"></section>
+    <section id="view-finanzas" class="view"></section>
     <section id="view-config" class="view"></section>
   </main>
 </div>
@@ -185,7 +187,8 @@ let configEmpresa = { tema_color: '#e8934a', configuracion_extra: {} };
 const DEFINICION_MODULOS = [
   { clave: 'inventario', titulo: 'Inventario', icono: '📦' },
   { clave: 'ventas',     titulo: 'Ventas · POS', icono: '🧾' },
-  { clave: 'credito',    titulo: 'Crédito', icono: '💳' }
+  { clave: 'credito',    titulo: 'Crédito', icono: '💳' },
+  { clave: 'finanzas',   titulo: 'Finanzas', icono: '💰' }
 ];
 
 function hexToRgb(hex){
@@ -273,13 +276,22 @@ async function entrarConUsuario(authUser){
 
   renderNav(modulosVisibles, puedeConfigurar);
 
-  if (modulosVisibles.length > 0) irA(modulosVisibles[0].clave);
+  if (puedeConfigurar) irA('inicio');
+  else if (modulosVisibles.length > 0) irA(modulosVisibles[0].clave);
   else irA('config');
 }
 
 function renderNav(modulosVisibles, puedeConfigurar){
   const nav = document.getElementById('navModulos');
-  let html = modulosVisibles.map(m => `
+  let html = '';
+
+  if (puedeConfigurar){
+    html += `<button class="nav-item" data-view="inicio" onclick="irA('inicio')">
+      <span class="nav-icono">🏠</span> Inicio
+    </button><div class="nav-separador"></div>`;
+  }
+
+  html += modulosVisibles.map(m => `
     <button class="nav-item" data-view="${m.clave}" onclick="irA('${m.clave}')">
       <span class="nav-icono">${m.icono}</span> ${m.titulo}
     </button>
@@ -299,9 +311,11 @@ function irA(clave){
   document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('activo', b.dataset.view === clave));
   document.getElementById(`view-${clave}`).classList.add('activa');
 
-  if (clave === 'inventario') ModuloInventario.mostrar();
+  if (clave === 'inicio') ModuloInicio.mostrar();
+  else if (clave === 'inventario') ModuloInventario.mostrar();
   else if (clave === 'ventas') ModuloVentas.mostrar();
   else if (clave === 'credito') ModuloCredito.mostrar();
+  else if (clave === 'finanzas') ModuloFinanzas.mostrar();
   else if (clave === 'config') ModuloConfig.mostrar();
 }
 
@@ -1225,6 +1239,290 @@ const ModuloCredito = (function(){
   }
 
   return { mostrar, abrirModalDetalle, abrirModalEditarCliente, cerrarModalCliente, cerrarModalDetalle, desactivarCliente };
+})();
+
+
+const ModuloFinanzas = (function(){
+  let cargado = false;
+  let gastos = [];
+  let rangoActivo = 'hoy';
+
+  function permisos(){ return permisosPorModulo.finanzas || { puede_editar:false, puede_eliminar:false }; }
+
+  async function mostrar(){
+    const el = document.getElementById('view-finanzas');
+    if (!cargado){
+      el.innerHTML = plantilla();
+      bindEventos();
+      cargado = true;
+      await cargarGastos('hoy');
+    }
+  }
+
+  function plantilla(){
+    return `
+      <h1>Finanzas</h1>
+      <div class="toolbar">
+        <button class="btn-icono" style="width:auto;padding:7px 14px;border-radius:20px" data-rango="hoy" onclick="ModuloFinanzas.cambiarRango('hoy')">Hoy</button>
+        <button class="btn-icono" style="width:auto;padding:7px 14px;border-radius:20px" data-rango="semana" onclick="ModuloFinanzas.cambiarRango('semana')">Esta semana</button>
+        <button class="btn-icono" style="width:auto;padding:7px 14px;border-radius:20px" data-rango="mes" onclick="ModuloFinanzas.cambiarRango('mes')">Este mes</button>
+        <div style="flex:1"></div>
+        <button id="fz-btnNuevo" class="btn-primary" style="${permisos().puede_editar?'':'display:none'}">+ Nuevo gasto</button>
+      </div>
+      <div class="stats" id="fz-stats"></div>
+      <div style="display:grid; grid-template-columns:2fr 1fr; gap:24px;">
+        <table><thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th style="text-align:right">Monto</th><th></th></tr></thead>
+          <tbody id="fz-tablaBody"><tr><td colspan="5" class="estado-vacio">Cargando…</td></tr></tbody></table>
+        <div class="panel">
+          <h2 style="font-size:13px">Por categoría</h2>
+          <table><thead><tr><th>Categoría</th><th style="text-align:right">Total</th></tr></thead><tbody id="fz-porCategoria"></tbody></table>
+        </div>
+      </div>
+
+      <div id="fz-modalOverlay" class="modal-overlay" style="display:none">
+        <div class="modal">
+          <div class="modal-header"><h2 id="fz-modalTitulo">Nuevo gasto</h2><button class="btn-cerrar" onclick="ModuloFinanzas.cerrarModal()">✕</button></div>
+          <form id="fz-formGasto">
+            <div class="form-row"><label>Concepto *</label><input type="text" id="fz-fConcepto" required placeholder="Compra de bolsas, pago de luz…"></div>
+            <div class="form-row-split">
+              <div class="form-row"><label>Categoría</label><input type="text" id="fz-fCategoria" list="fz-listaCategorias" placeholder="Servicios, insumos…"><datalist id="fz-listaCategorias"></datalist></div>
+              <div class="form-row"><label>Monto (Bs) *</label><input type="number" step="0.01" id="fz-fMonto" required></div>
+            </div>
+            <div class="form-row-split">
+              <div class="form-row"><label>Fecha</label><input type="date" id="fz-fFecha"></div>
+              <div class="form-row"><label>Método</label><select id="fz-fMetodo"><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="tarjeta">Tarjeta</option></select></div>
+            </div>
+            <div class="form-row"><label>Nota (opcional)</label><input type="text" id="fz-fNota"></div>
+            <div id="fz-formError" class="form-error" style="display:none"></div>
+            <div class="form-actions">
+              <button type="button" id="fz-btnEliminar" class="btn-danger" style="display:none" onclick="ModuloFinanzas.eliminarGasto()">Eliminar</button>
+              <div style="flex:1"></div>
+              <button type="button" class="btn-secundario" onclick="ModuloFinanzas.cerrarModal()">Cancelar</button>
+              <button type="submit" id="fz-btnGuardar" class="btn-primary">Guardar gasto</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+  }
+
+  function bindEventos(){
+    document.getElementById('fz-btnNuevo').addEventListener('click', abrirModalNuevo);
+    document.getElementById('fz-formGasto').addEventListener('submit', guardarGasto);
+  }
+
+  function calcularInicioRango(rango){
+    const inicio = new Date(); inicio.setHours(0,0,0,0);
+    if (rango === 'semana'){ const d=inicio.getDay(); inicio.setDate(inicio.getDate() - (d===0?6:d-1)); }
+    else if (rango === 'mes'){ inicio.setDate(1); }
+    return inicio;
+  }
+
+  function cambiarRango(rango){
+    rangoActivo = rango;
+    document.querySelectorAll('[data-rango]').forEach(b => b.style.background = b.dataset.rango===rango ? 'rgba(var(--accent-rgb),0.14)' : 'var(--bg)');
+    cargarGastos(rango);
+  }
+
+  async function cargarGastos(rango){
+    const inicio = calcularInicioRango(rango);
+    const inicioStr = inicio.toISOString().slice(0,10);
+    const { data, error } = await sb.from('gastos').select('*').eq('empresa_id', EMPRESA_ID).gte('fecha', inicioStr).order('fecha', {ascending:false});
+    if (error){
+      document.getElementById('fz-tablaBody').innerHTML = `<tr><td colspan="5" class="estado-vacio">Error: ${error.message}</td></tr>`;
+      return;
+    }
+    gastos = data;
+    poblarCategorias();
+    renderStats();
+    renderTabla();
+  }
+
+  function poblarCategorias(){
+    const categorias = [...new Set(gastos.map(g => g.categoria).filter(Boolean))].sort();
+    document.getElementById('fz-listaCategorias').innerHTML = categorias.map(c => `<option value="${c}">`).join('');
+  }
+
+  function renderStats(){
+    const total = gastos.reduce((a,g) => a + Number(g.monto), 0);
+    document.getElementById('fz-stats').innerHTML = `
+      <div class="stat"><div class="num">${gastos.length}</div><div class="label">gastos registrados</div></div>
+      <div class="stat"><div class="num">Bs ${total.toLocaleString('es-BO',{maximumFractionDigits:0})}</div><div class="label">total del período</div></div>`;
+
+    const porCategoria = {};
+    gastos.forEach(g => { const c = g.categoria || 'Sin categoría'; porCategoria[c] = (porCategoria[c]||0) + Number(g.monto); });
+    document.getElementById('fz-porCategoria').innerHTML = Object.entries(porCategoria).sort((a,b)=>b[1]-a[1])
+      .map(([c,t]) => `<tr><td>${c}</td><td style="text-align:right">Bs ${t.toFixed(2)}</td></tr>`).join('') || '<tr><td colspan="2" class="estado-vacio">Sin datos.</td></tr>';
+  }
+
+  function renderTabla(){
+    const tbody = document.getElementById('fz-tablaBody');
+    tbody.innerHTML = gastos.length === 0 ? '<tr><td colspan="5" class="estado-vacio">Sin gastos en este período.</td></tr>' :
+      gastos.map(g => `
+        <tr>
+          <td>${new Date(g.fecha+'T00:00:00').toLocaleDateString('es-BO',{day:'2-digit',month:'2-digit',year:'numeric'})}</td>
+          <td>${g.concepto}</td>
+          <td><span class="badge">${g.categoria || 'Sin categoría'}</span></td>
+          <td style="text-align:right">Bs ${Number(g.monto).toFixed(2)}</td>
+          <td style="text-align:center">${permisos().puede_editar ? `<button class="btn-icono" onclick="ModuloFinanzas.abrirModalEdicion('${g.id}')">✎</button>` : ''}</td>
+        </tr>
+      `).join('');
+  }
+
+  let gastoEditando = null;
+
+  function abrirModalNuevo(){
+    gastoEditando = null;
+    document.getElementById('fz-formGasto').reset();
+    document.getElementById('fz-fFecha').value = new Date().toISOString().slice(0,10);
+    document.getElementById('fz-formError').style.display = 'none';
+    document.getElementById('fz-modalTitulo').textContent = 'Nuevo gasto';
+    document.getElementById('fz-btnGuardar').textContent = 'Guardar gasto';
+    document.getElementById('fz-btnEliminar').style.display = 'none';
+    document.getElementById('fz-modalOverlay').style.display = 'flex';
+  }
+
+  function abrirModalEdicion(id){
+    const g = gastos.find(x => x.id === id);
+    if (!g) return;
+    gastoEditando = g;
+    document.getElementById('fz-formError').style.display = 'none';
+    document.getElementById('fz-modalTitulo').textContent = 'Editar gasto';
+    document.getElementById('fz-btnGuardar').textContent = 'Guardar cambios';
+    document.getElementById('fz-btnEliminar').style.display = permisos().puede_eliminar ? 'inline-block' : 'none';
+    document.getElementById('fz-fConcepto').value = g.concepto || '';
+    document.getElementById('fz-fCategoria').value = g.categoria || '';
+    document.getElementById('fz-fMonto').value = g.monto ?? '';
+    document.getElementById('fz-fFecha').value = g.fecha;
+    document.getElementById('fz-fMetodo').value = g.metodo_pago || 'efectivo';
+    document.getElementById('fz-fNota').value = g.nota || '';
+    document.getElementById('fz-modalOverlay').style.display = 'flex';
+  }
+
+  function cerrarModal(){ document.getElementById('fz-modalOverlay').style.display = 'none'; }
+
+  async function guardarGasto(e){
+    e.preventDefault();
+    const formError = document.getElementById('fz-formError');
+    formError.style.display = 'none';
+    const btn = document.getElementById('fz-btnGuardar');
+    btn.disabled = true; btn.textContent = 'Guardando…';
+
+    const datos = {
+      concepto: document.getElementById('fz-fConcepto').value.trim(),
+      categoria: document.getElementById('fz-fCategoria').value.trim() || null,
+      monto: parseFloat(document.getElementById('fz-fMonto').value) || 0,
+      fecha: document.getElementById('fz-fFecha').value,
+      metodo_pago: document.getElementById('fz-fMetodo').value,
+      nota: document.getElementById('fz-fNota').value.trim() || null
+    };
+
+    let error;
+    if (gastoEditando){
+      ({ error } = await sb.from('gastos').update(datos).eq('id', gastoEditando.id));
+    } else {
+      ({ error } = await sb.from('gastos').insert({ ...datos, empresa_id: EMPRESA_ID, usuario_id: usuarioActual.id }));
+    }
+
+    btn.disabled = false; btn.textContent = gastoEditando ? 'Guardar cambios' : 'Guardar gasto';
+    if (error){ formError.textContent = `No se pudo guardar: ${error.message}`; formError.style.display = 'block'; return; }
+    cerrarModal(); await cargarGastos(rangoActivo);
+  }
+
+  async function eliminarGasto(){
+    if (!gastoEditando) return;
+    if (!confirm(`¿Eliminar el gasto "${gastoEditando.concepto}"?`)) return;
+    const { error } = await sb.from('gastos').delete().eq('id', gastoEditando.id);
+    if (error){ alert(`No se pudo eliminar: ${error.message}`); return; }
+    cerrarModal(); await cargarGastos(rangoActivo);
+  }
+
+  return { mostrar, cambiarRango, cerrarModal, abrirModalEdicion, eliminarGasto };
+})();
+
+
+const ModuloInicio = (function(){
+  let cargado = false;
+
+  async function mostrar(){
+    const el = document.getElementById('view-inicio');
+    el.innerHTML = plantilla();
+    await cargarDatos();
+    cargado = true;
+  }
+
+  function plantilla(){
+    return `
+      <h1>Inicio</h1>
+      <div class="stats" id="in-statsPrincipales"></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:6px;">
+        <div class="panel">
+          <h2>📉 Reposición sugerida</h2>
+          <div style="font-size:12px; color:var(--text-dim); margin-bottom:12px">Productos con stock bajo — priorizá reponer estos primero.</div>
+          <table><thead><tr><th>Producto</th><th style="text-align:right">Stock</th></tr></thead><tbody id="in-reposicion"></tbody></table>
+        </div>
+        <div class="panel">
+          <h2>🐌 Sin rotación (últimos 30 días)</h2>
+          <div style="font-size:12px; color:var(--text-dim); margin-bottom:12px">No se vendieron en el último mes — evaluá promoción, descuento o dar de baja.</div>
+          <table><thead><tr><th>Producto</th><th style="text-align:right">Stock</th></tr></thead><tbody id="in-sinRotacion"></tbody></table>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:0">
+        <h2>💰 Gastos de hoy</h2>
+        <table><thead><tr><th>Concepto</th><th>Categoría</th><th style="text-align:right">Monto</th></tr></thead><tbody id="in-gastosHoy"></tbody></table>
+      </div>
+    `;
+  }
+
+  async function cargarDatos(){
+    const inicioHoy = new Date(); inicioHoy.setHours(0,0,0,0);
+    const hoyStr = inicioHoy.toISOString().slice(0,10);
+
+    // Ventas de hoy + productos vendidos
+    const { data: ventasHoy } = await sb.from('ventas').select('id, total').eq('empresa_id', EMPRESA_ID).eq('estado','completada').gte('created_at', inicioHoy.toISOString());
+    const totalVentasHoy = (ventasHoy||[]).reduce((a,v)=>a+Number(v.total),0);
+
+    let productosVendidosHoy = 0;
+    if (ventasHoy && ventasHoy.length > 0){
+      const { data: items } = await sb.from('venta_items').select('cantidad').in('venta_id', ventasHoy.map(v=>v.id));
+      productosVendidosHoy = (items||[]).reduce((a,i)=>a+Number(i.cantidad), 0);
+    }
+
+    // Gastos de hoy
+    const { data: gastosHoy } = await sb.from('gastos').select('*').eq('empresa_id', EMPRESA_ID).eq('fecha', hoyStr);
+    const totalGastosHoy = (gastosHoy||[]).reduce((a,g)=>a+Number(g.monto),0);
+
+    document.getElementById('in-statsPrincipales').innerHTML = `
+      <div class="stat"><div class="num">Bs ${totalVentasHoy.toLocaleString('es-BO',{maximumFractionDigits:0})}</div><div class="label">ventas de hoy</div></div>
+      <div class="stat"><div class="num">${productosVendidosHoy}</div><div class="label">productos vendidos hoy</div></div>
+      <div class="stat"><div class="num">Bs ${totalGastosHoy.toLocaleString('es-BO',{maximumFractionDigits:0})}</div><div class="label">gastos de hoy</div></div>`;
+
+    document.getElementById('in-gastosHoy').innerHTML = (gastosHoy||[]).length === 0
+      ? '<tr><td colspan="3" class="estado-vacio">Sin gastos registrados hoy.</td></tr>'
+      : gastosHoy.map(g => `<tr><td>${g.concepto}</td><td><span class="badge">${g.categoria||'Sin categoría'}</span></td><td style="text-align:right">Bs ${Number(g.monto).toFixed(2)}</td></tr>`).join('');
+
+    // Reposición: stock bajo
+    const { data: productos } = await sb.from('catalogo_productos').select('id, nombre, stock_actual, unidad_medida').eq('empresa_id', EMPRESA_ID).eq('activo', true).order('stock_actual');
+    const bajoStock = (productos||[]).filter(p => p.stock_actual <= 15).slice(0, 8);
+    document.getElementById('in-reposicion').innerHTML = bajoStock.length === 0
+      ? '<tr><td colspan="2" class="estado-vacio">Ningún producto con stock bajo. 👍</td></tr>'
+      : bajoStock.map(p => `<tr><td>${p.nombre}</td><td style="text-align:right; color:var(--warn)">${p.stock_actual} ${p.unidad_medida}</td></tr>`).join('');
+
+    // Sin rotación: no vendidos en los últimos 30 días
+    const hace30 = new Date(); hace30.setDate(hace30.getDate() - 30);
+    const { data: ventasRecientes } = await sb.from('ventas').select('id').eq('empresa_id', EMPRESA_ID).eq('estado','completada').gte('created_at', hace30.toISOString());
+    let productosVendidosIds = new Set();
+    if (ventasRecientes && ventasRecientes.length > 0){
+      const { data: itemsRecientes } = await sb.from('venta_items').select('producto_id').in('venta_id', ventasRecientes.map(v=>v.id));
+      productosVendidosIds = new Set((itemsRecientes||[]).map(i => i.producto_id));
+    }
+    const sinRotacion = (productos||[]).filter(p => !productosVendidosIds.has(p.id)).slice(0, 8);
+    document.getElementById('in-sinRotacion').innerHTML = sinRotacion.length === 0
+      ? '<tr><td colspan="2" class="estado-vacio">Todo el catálogo tuvo movimiento reciente. 👍</td></tr>'
+      : sinRotacion.map(p => `<tr><td>${p.nombre}</td><td style="text-align:right">${p.stock_actual} ${p.unidad_medida}</td></tr>`).join('');
+  }
+
+  return { mostrar };
 })();
 
 
