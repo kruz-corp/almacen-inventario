@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Almacén — Inventario</title>
+<title>Almacén — Inicio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -14,365 +14,56 @@
     --line: #34383c;
     --text: #ece8e0;
     --text-dim: #9a9d9f;
-    --amber: #e8934a;
-    --amber-dim: #6b5138;
-    --ok: #7fb069;
+    --amber: #e8934a; --amber-dim: #6b5138;
+    --blue: #5b8dee; --blue-dim: #2d4270;
+    --violet: #a172e0; --violet-dim: #3d2f52;
     --warn: #d9634a;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
-  body{
-    background:var(--bg);
-    color:var(--text);
-    font-family:'Inter', sans-serif;
-    min-height:100vh;
-  }
-  header{
-    border-bottom:1px solid var(--line);
-    padding:22px 28px;
-    display:flex;
-    align-items:baseline;
-    justify-content:space-between;
-    flex-wrap:wrap;
-    gap:12px;
-  }
-  .brand{
-    font-family:'Space Grotesk', sans-serif;
-    font-weight:700;
-    font-size:22px;
-    letter-spacing:-0.01em;
-  }
+  body{background:var(--bg); color:var(--text); font-family:'Inter', sans-serif; min-height:100vh;}
+  header{border-bottom:1px solid var(--line); padding:22px 28px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;}
+  .brand{font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:22px;}
   .brand span{color:var(--amber);}
-  .empresa-tag{
-    font-family:'IBM Plex Mono', monospace;
-    font-size:12px;
-    color:var(--text-dim);
-    border:1px solid var(--line);
-    padding:4px 10px;
-    border-radius:3px;
+  .header-right{display:flex; align-items:center; gap:10px;}
+  .empresa-tag{font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--text-dim); border:1px solid var(--line); padding:4px 10px; border-radius:3px;}
+  .btn-logout{background:none; border:1px solid var(--line); color:var(--text-dim); padding:6px 12px; border-radius:4px; font-size:12px; cursor:pointer;}
+  .btn-logout:hover{color:var(--text); border-color:var(--text-dim);}
+
+  main{max-width:920px; margin:0 auto; padding:48px 28px;}
+  .saludo{margin-bottom:6px; font-family:'Space Grotesk', sans-serif; font-size:22px;}
+  .saludo-sub{color:var(--text-dim); font-size:14px; margin-bottom:32px;}
+
+  .grid-modulos{display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:18px;}
+  .card-modulo{
+    background:var(--bg-panel); border:1px solid var(--line); border-radius:10px;
+    padding:24px; text-decoration:none; color:var(--text); display:block;
+    transition:border-color 0.15s, transform 0.15s;
   }
-  main{
-    max-width:1100px;
-    margin:0 auto;
-    padding:28px;
-  }
-  .toolbar{
-    display:flex;
-    gap:10px;
-    margin-bottom:20px;
-    flex-wrap:wrap;
-  }
-  .toolbar input, .toolbar select{
-    background:var(--bg-panel);
-    border:1px solid var(--line);
-    color:var(--text);
-    padding:10px 14px;
-    border-radius:4px;
-    font-family:'Inter', sans-serif;
-    font-size:14px;
-  }
-  .toolbar input{flex:1; min-width:220px;}
-  .toolbar input:focus, .toolbar select:focus{
-    outline:none;
-    border-color:var(--amber-dim);
-  }
-  .stats{
-    display:flex;
-    gap:14px;
-    margin-bottom:20px;
-    flex-wrap:wrap;
-  }
-  .stat{
-    background:var(--bg-panel);
-    border:1px solid var(--line);
-    border-radius:6px;
-    padding:14px 18px;
-    min-width:130px;
-  }
-  .stat .num{
-    font-family:'Space Grotesk', sans-serif;
-    font-size:26px;
-    font-weight:700;
-    color:var(--amber);
-  }
-  .stat .label{
-    font-size:12px;
-    color:var(--text-dim);
-    margin-top:2px;
-  }
-  table{
-    width:100%;
-    border-collapse:collapse;
-    background:var(--bg-panel);
-    border:1px solid var(--line);
-    border-radius:6px;
-    overflow:hidden;
-  }
-  thead th{
-    text-align:left;
-    font-size:11px;
-    text-transform:uppercase;
-    letter-spacing:0.05em;
-    color:var(--text-dim);
-    padding:12px 16px;
-    border-bottom:1px solid var(--line);
-    font-weight:500;
-  }
-  tbody td{
-    padding:13px 16px;
-    border-bottom:1px solid var(--line);
-    font-size:14px;
-  }
-  tbody tr:last-child td{border-bottom:none;}
-  tbody tr:hover{background:var(--bg-panel-hover);}
-  .codigo{
-    font-family:'IBM Plex Mono', monospace;
-    color:var(--text-dim);
-    font-size:13px;
-  }
-  .categoria-badge{
-    display:inline-block;
-    font-size:11px;
-    padding:3px 9px;
-    border-radius:20px;
-    border:1px solid var(--amber-dim);
-    color:var(--amber);
-    background:rgba(232,147,74,0.08);
-  }
-  .stock{
-    font-family:'IBM Plex Mono', monospace;
-  }
-  .stock.bajo{color:var(--warn);}
-  .stock.ok{color:var(--ok);}
-  .precio{
-    font-family:'IBM Plex Mono', monospace;
-    text-align:right;
-  }
-  .estado{
-    text-align:center;
-    padding:60px 20px;
-    color:var(--text-dim);
-    font-size:14px;
-  }
-  .btn-primary{
-    background:var(--amber);
-    color:#1b1d1f;
-    border:none;
-    padding:10px 18px;
-    border-radius:4px;
-    font-family:'Inter', sans-serif;
-    font-weight:600;
-    font-size:14px;
-    cursor:pointer;
-    white-space:nowrap;
-  }
-  .btn-primary:hover{background:#f0a563;}
-  .btn-secundario{
-    background:transparent;
-    color:var(--text-dim);
-    border:1px solid var(--line);
-    padding:10px 18px;
-    border-radius:4px;
-    font-family:'Inter', sans-serif;
-    font-size:14px;
-    cursor:pointer;
-  }
-  .btn-secundario:hover{color:var(--text); border-color:var(--text-dim);}
-  .btn-danger{
-    background:transparent;
-    color:var(--warn);
-    border:1px solid var(--warn);
-    padding:10px 18px;
-    border-radius:4px;
-    font-family:'Inter', sans-serif;
-    font-size:14px;
-    cursor:pointer;
-  }
-  .btn-danger:hover{background:rgba(217,99,74,0.1);}
-  .modal-overlay{
-    position:fixed;
-    inset:0;
-    background:rgba(0,0,0,0.6);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    z-index:100;
-    padding:20px;
-  }
-  .modal{
-    background:var(--bg-panel);
-    border:1px solid var(--line);
-    border-radius:8px;
-    width:100%;
-    max-width:440px;
-    padding:24px;
-  }
-  .modal-header{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin-bottom:18px;
-  }
-  .modal-header h2{
-    font-family:'Space Grotesk', sans-serif;
-    font-size:18px;
-    font-weight:700;
-  }
-  .btn-cerrar{
-    background:none;
-    border:none;
-    color:var(--text-dim);
-    font-size:16px;
-    cursor:pointer;
-    padding:4px 8px;
-  }
-  .btn-cerrar:hover{color:var(--text);}
-  .form-row{
-    margin-bottom:14px;
-    display:flex;
-    flex-direction:column;
-    gap:6px;
-  }
-  .form-row label{
-    font-size:12px;
-    color:var(--text-dim);
-    text-transform:uppercase;
-    letter-spacing:0.03em;
-  }
-  .form-row input{
-    background:var(--bg);
-    border:1px solid var(--line);
-    color:var(--text);
-    padding:10px 12px;
-    border-radius:4px;
-    font-family:'Inter', sans-serif;
-    font-size:14px;
-  }
+  .card-modulo:hover{transform:translateY(-2px);}
+  .card-modulo.amber:hover{border-color:var(--amber);}
+  .card-modulo.blue:hover{border-color:var(--blue);}
+  .card-modulo.violet:hover{border-color:var(--violet);}
+
+  .card-icono{width:40px; height:40px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:20px; margin-bottom:16px;}
+  .card-icono.amber{background:rgba(232,147,74,0.12); color:var(--amber);}
+  .card-icono.blue{background:rgba(91,141,238,0.12); color:var(--blue);}
+  .card-icono.violet{background:rgba(161,114,224,0.12); color:var(--violet);}
+
+  .card-titulo{font-family:'Space Grotesk', sans-serif; font-size:17px; font-weight:700; margin-bottom:6px;}
+  .card-desc{font-size:13px; color:var(--text-dim); line-height:1.5;}
+
+  .estado-vacio{text-align:center; padding:60px 20px; color:var(--text-dim);}
+
+  .login-screen{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;}
+  .login-box{background:var(--bg-panel); border:1px solid var(--line); border-radius:8px; padding:36px; width:100%; max-width:380px;}
+  .login-sub{color:var(--text-dim); font-size:13px; margin-bottom:24px;}
+  .form-row{margin-bottom:14px; display:flex; flex-direction:column; gap:6px;}
+  .form-row label{font-size:12px; color:var(--text-dim); text-transform:uppercase;}
+  .form-row input{background:var(--bg); border:1px solid var(--line); color:var(--text); padding:10px 12px; border-radius:4px; font-family:'Inter', sans-serif; font-size:14px; width:100%; box-sizing:border-box;}
   .form-row input:focus{outline:none; border-color:var(--amber-dim);}
-  .form-row-split{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:12px;
-  }
-  .form-row-split > div{display:flex; flex-direction:column; gap:6px;}
-  .form-error{
-    background:rgba(217,99,74,0.1);
-    border:1px solid var(--warn);
-    color:var(--warn);
-    padding:10px 12px;
-    border-radius:4px;
-    font-size:13px;
-    margin-bottom:14px;
-  }
-  .form-actions{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    margin-top:20px;
-  }
-  .ajuste-cell{
-    text-align:center;
-    white-space:nowrap;
-  }
-  .btn-ajuste{
-    background:var(--bg);
-    border:1px solid var(--line);
-    color:var(--text);
-    width:26px;
-    height:26px;
-    border-radius:4px;
-    font-size:15px;
-    font-family:'IBM Plex Mono', monospace;
-    cursor:pointer;
-    line-height:1;
-  }
-  .btn-ajuste:hover{
-    border-color:var(--amber-dim);
-    color:var(--amber);
-  }
-  .btn-ajuste:first-child{margin-right:6px;}
-  .login-screen{
-    min-height:100vh;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:20px;
-  }
-  .login-box{
-    background:var(--bg-panel);
-    border:1px solid var(--line);
-    border-radius:8px;
-    padding:36px;
-    width:100%;
-    max-width:380px;
-  }
-  .login-box .brand{
-    margin-bottom:6px;
-  }
-  .login-sub{
-    color:var(--text-dim);
-    font-size:13px;
-    margin-bottom:24px;
-  }
-  .login-box .form-row{margin-bottom:16px;}
-  .btn-primary.btn-full{
-    width:100%;
-    padding:12px;
-    margin-top:6px;
-  }
-  .btn-logout{
-    background:none;
-    border:1px solid var(--line);
-    color:var(--text-dim);
-    padding:6px 12px;
-    border-radius:4px;
-    font-size:12px;
-    cursor:pointer;
-    font-family:'Inter', sans-serif;
-  }
-  .btn-logout:hover{color:var(--warn); border-color:var(--warn);}
-  .header-right{
-    display:flex;
-    align-items:center;
-    gap:10px;
-  }
-  .import-resumen{
-    background:var(--bg-panel);
-    border:1px solid var(--amber-dim);
-    border-radius:6px;
-    padding:14px 18px;
-    margin-bottom:16px;
-    font-size:13px;
-    color:var(--text);
-  }
-  .import-resumen b{color:var(--amber);}
-  .tabla-duplicados{
-    margin-top:12px;
-    max-height:220px;
-    overflow-y:auto;
-    border:1px solid var(--line);
-    border-radius:4px;
-  }
-  .tabla-duplicados table{
-    width:100%;
-    border:none;
-    border-radius:0;
-  }
-  .tabla-duplicados th{
-    position:sticky;
-    top:0;
-    background:var(--bg-panel);
-  }
-  .tabla-duplicados td, .tabla-duplicados th{
-    padding:8px 10px;
-    font-size:12px;
-  }
-  footer{
-    text-align:center;
-    padding:24px;
-    color:var(--text-dim);
-    font-size:12px;
-    font-family:'IBM Plex Mono', monospace;
-  }
+  .form-error{background:rgba(217,99,74,0.1); border:1px solid var(--warn); color:var(--warn); padding:10px 12px; border-radius:4px; font-size:13px; margin-bottom:14px;}
+  .btn-primary{background:var(--amber); color:#1b1d1f; border:none; padding:12px; border-radius:4px; font-weight:700; font-size:14px; cursor:pointer; width:100%;}
+  .btn-primary:hover{background:#f0a563;}
 </style>
 </head>
 <body>
@@ -380,7 +71,7 @@
 <div id="loginScreen" class="login-screen">
   <div class="login-box">
     <div class="brand">almacén<span>·</span>inventario</div>
-    <div class="login-sub">Iniciá sesión para ver tu inventario</div>
+    <div class="login-sub">Iniciá sesión para continuar</div>
     <form id="formLogin">
       <div class="form-row">
         <label>Correo</label>
@@ -391,135 +82,46 @@
         <input type="password" id="loginPassword" required placeholder="••••••••" autocomplete="current-password">
       </div>
       <div id="loginError" class="form-error" style="display:none"></div>
-      <button type="submit" class="btn-primary btn-full">Ingresar</button>
+      <button type="submit" class="btn-primary">Ingresar</button>
     </form>
   </div>
 </div>
 
 <div id="appScreen" style="display:none">
-
-<header>
-  <div class="brand">almacén<span>·</span>inventario</div>
-  <div class="header-right">
-    <div class="empresa-tag" id="empresaTag">cargando empresa…</div>
-    <button id="btnLogout" class="btn-logout">Salir</button>
-  </div>
-</header>
-
-<main>
-  <div class="stats" id="stats"></div>
-
-  <div class="toolbar">
-    <input type="text" id="buscador" placeholder="Buscar por nombre o código…">
-    <select id="filtroCategoria">
-      <option value="">Todas las categorías</option>
-    </select>
-    <button id="btnExportar" class="btn-secundario">⭳ Exportar Excel</button>
-    <button id="btnImportar" class="btn-secundario">⭱ Importar Excel</button>
-    <input type="file" id="fileImportar" accept=".xlsx,.xls" style="display:none">
-    <button id="btnNuevo" class="btn-primary">+ Nuevo producto</button>
-  </div>
-
-  <div id="importResumen" class="import-resumen" style="display:none"></div>
-
-  <div id="modalOverlay" class="modal-overlay" style="display:none">
-    <div class="modal">
-      <div class="modal-header">
-        <h2 id="modalTitulo">Nuevo producto</h2>
-        <button id="btnCerrarModal" class="btn-cerrar">✕</button>
-      </div>
-      <form id="formProducto">
-        <div class="form-row">
-          <label>Código</label>
-          <input type="text" id="fCodigo" placeholder="FER-006">
-        </div>
-        <div class="form-row">
-          <label>Nombre *</label>
-          <input type="text" id="fNombre" required placeholder="Destornillador plano 6&quot;">
-        </div>
-        <div class="form-row">
-          <label>Categoría</label>
-          <input type="text" id="fCategoria" placeholder="Herramientas" list="listaCategorias">
-          <datalist id="listaCategorias"></datalist>
-        </div>
-        <div class="form-row form-row-split">
-          <div>
-            <label>Costo (Bs)</label>
-            <input type="number" step="0.01" id="fCosto" placeholder="0.00">
-          </div>
-          <div>
-            <label>Venta (Bs)</label>
-            <input type="number" step="0.01" id="fVenta" placeholder="0.00">
-          </div>
-        </div>
-        <div class="form-row form-row-split">
-          <div>
-            <label>Stock inicial</label>
-            <input type="number" step="1" id="fStock" placeholder="0">
-          </div>
-          <div>
-            <label>Unidad</label>
-            <input type="text" id="fUnidad" placeholder="unidad" value="unidad">
-          </div>
-        </div>
-        <div id="formError" class="form-error" style="display:none"></div>
-        <div class="form-actions">
-          <button type="button" id="btnEliminar" class="btn-danger" style="display:none">Eliminar</button>
-          <div style="flex:1"></div>
-          <button type="button" id="btnCancelar" class="btn-secundario">Cancelar</button>
-          <button type="submit" class="btn-primary" id="btnGuardarProducto">Guardar producto</button>
-        </div>
-      </form>
+  <header>
+    <div class="brand">almacén<span>·</span>inventario</div>
+    <div class="header-right">
+      <div class="empresa-tag" id="empresaTag">cargando…</div>
+      <button id="btnLogout" class="btn-logout">Salir</button>
     </div>
-  </div>
+  </header>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Código</th>
-        <th>Producto</th>
-        <th>Categoría</th>
-        <th>Stock</th>
-        <th style="text-align:right">Costo</th>
-        <th style="text-align:right">Venta</th>
-        <th style="text-align:center">Ajustar</th>
-      </tr>
-    </thead>
-    <tbody id="tablaBody">
-      <tr><td colspan="7" class="estado">Conectando con Supabase…</td></tr>
-    </tbody>
-  </table>
-</main>
-
+  <main>
+    <div class="saludo" id="saludo">Hola</div>
+    <div class="saludo-sub">Elegí un módulo para continuar</div>
+    <div class="grid-modulos" id="gridModulos"></div>
+  </main>
 </div>
 
-<footer>almacén·inventario — prototipo v1</footer>
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
-  // ── Configuración de conexión ──────────────────────────────────
   const SUPABASE_URL = 'https://pgjwerbixkbbyqamsicp.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_36d4hftRPT8XEoOR7Vm-Rw_TBQAkMBy';
-
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  let productos = [];
-  let EMPRESA_ID = null;
-  let usuarioActual = null;
-  let permisosActuales = { puede_ver: false, puede_editar: false, puede_eliminar: false };
+  // Catálogo de módulos disponibles en el producto (se amplía a futuro)
+  const MODULOS = [
+    { clave: 'inventario', titulo: 'Inventario', desc: 'Catálogo, stock y productos', color: 'amber', icono: '📦', link: 'inventario.html' },
+    { clave: 'ventas',     titulo: 'Ventas · POS', desc: 'Carrito, cobro, recibos y reportes', color: 'blue', icono: '🧾', link: 'ventas.html' },
+    { clave: 'credito',    titulo: 'Crédito', desc: 'Clientes, saldos y abonos', color: 'violet', icono: '💳', link: 'credito.html' }
+  ];
 
-  // ── Autenticación ────────────────────────────────────────────────
   const loginScreen = document.getElementById('loginScreen');
   const appScreen = document.getElementById('appScreen');
-  const formLogin = document.getElementById('formLogin');
-  const loginError = document.getElementById('loginError');
 
   async function iniciarSesionSiExiste(){
     const { data: { session } } = await sb.auth.getSession();
-    if (session){
-      await entrarConUsuario(session.user);
-    }
+    if (session) await entrarConUsuario(session.user);
   }
 
   async function entrarConUsuario(authUser){
@@ -530,82 +132,62 @@
       .single();
 
     if (error || !usuario){
-      loginError.textContent = 'Esta cuenta no está vinculada a ninguna empresa. Contactá al administrador.';
-      loginError.style.display = 'block';
+      document.getElementById('loginError').textContent = 'Esta cuenta no está vinculada a ninguna empresa.';
+      document.getElementById('loginError').style.display = 'block';
       await sb.auth.signOut();
       return;
     }
 
-    usuarioActual = usuario;
-    EMPRESA_ID = usuario.empresa_id;
+    // Módulos que la EMPRESA tiene activos (contratados)
+    const { data: config } = await sb
+      .from('empresa_config')
+      .select('modulos_activos')
+      .eq('empresa_id', usuario.empresa_id)
+      .single();
+    const modulosActivosEmpresa = config?.modulos_activos || [];
 
-    // Buscar el permiso del rol para el módulo de inventario
-    const { data: permiso } = await sb
+    // Módulos que el ROL del usuario puede ver
+    const { data: permisos } = await sb
       .from('permisos_modulo')
-      .select('puede_ver, puede_editar, puede_eliminar')
-      .eq('rol_id', usuario.rol_id)
-      .eq('modulo', 'inventario')
-      .maybeSingle();
+      .select('modulo, puede_ver')
+      .eq('rol_id', usuario.rol_id);
+    const modulosVisiblesRol = (permisos || []).filter(p => p.puede_ver).map(p => p.modulo);
 
-    permisosActuales = permiso || { puede_ver: false, puede_editar: false, puede_eliminar: false };
-
-    if (!permisosActuales.puede_ver){
-      loginScreen.style.display = 'none';
-      appScreen.style.display = 'none';
-      mostrarSinPermiso(usuario);
-      return;
-    }
+    const modulosDisponibles = MODULOS.filter(m =>
+      modulosActivosEmpresa.includes(m.clave) && modulosVisiblesRol.includes(m.clave)
+    );
 
     loginScreen.style.display = 'none';
     appScreen.style.display = 'block';
-    document.getElementById('empresaTag').textContent =
-      `${usuario.empresas.nombre} · ${usuario.nombre_completo}`;
+    document.getElementById('empresaTag').textContent = `${usuario.empresas.nombre} · ${usuario.nombre_completo}`;
+    document.getElementById('saludo').textContent = `Hola, ${usuario.nombre_completo.split(' ')[0]}`;
 
-    document.getElementById('btnNuevo').style.display =
-      permisosActuales.puede_editar ? 'inline-block' : 'none';
-    document.getElementById('btnImportar').style.display =
-      permisosActuales.puede_editar ? 'inline-block' : 'none';
-
-    cargarDatos();
+    const grid = document.getElementById('gridModulos');
+    if (modulosDisponibles.length === 0){
+      grid.innerHTML = '<div class="estado-vacio">Tu usuario no tiene módulos habilitados todavía. Contactá al administrador de tu cuenta.</div>';
+    } else {
+      grid.innerHTML = modulosDisponibles.map(m => `
+        <a class="card-modulo ${m.color}" href="${m.link}">
+          <div class="card-icono ${m.color}">${m.icono}</div>
+          <div class="card-titulo">${m.titulo}</div>
+          <div class="card-desc">${m.desc}</div>
+        </a>
+      `).join('');
+    }
   }
 
-  function mostrarSinPermiso(usuario){
-    document.body.insertAdjacentHTML('beforeend', `
-      <div id="sinPermisoScreen" class="login-screen">
-        <div class="login-box">
-          <div class="brand">almacén<span>·</span>inventario</div>
-          <div class="login-sub">Hola, ${usuario.nombre_completo}. Tu rol no tiene acceso a este módulo.</div>
-          <button id="btnLogoutSinPermiso" class="btn-primary btn-full">Cerrar sesión</button>
-        </div>
-      </div>
-    `);
-    document.getElementById('btnLogoutSinPermiso').addEventListener('click', async () => {
-      await sb.auth.signOut();
-      location.reload();
-    });
-  }
-
-  formLogin.addEventListener('submit', async (e) => {
+  document.getElementById('formLogin').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const loginError = document.getElementById('loginError');
     loginError.style.display = 'none';
-
     const email = document.getElementById('loginEmail').value.trim();
     const password = document.getElementById('loginPassword').value;
-    const submitBtn = formLogin.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Ingresando…';
-
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
-
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Ingresar';
-
     if (error){
       loginError.textContent = 'Correo o contraseña incorrectos.';
       loginError.style.display = 'block';
       return;
     }
-
     await entrarConUsuario(data.user);
   });
 
@@ -613,468 +195,6 @@
     await sb.auth.signOut();
     location.reload();
   });
-
-  async function cargarDatos(){
-    // Nombre de la empresa (ya lo tenemos del login, pero refrescamos por si acaso)
-    const { data: catalogo, error: errCatalogo } = await sb
-      .from('catalogo_productos')
-      .select('*')
-      .eq('empresa_id', EMPRESA_ID)
-      .eq('activo', true)
-      .order('codigo');
-
-    if (errCatalogo){
-      document.getElementById('tablaBody').innerHTML =
-        `<tr><td colspan="7" class="estado">Error al leer catálogo: ${errCatalogo.message}</td></tr>`;
-      return;
-    }
-
-    productos = catalogo;
-    poblarCategorias();
-    renderStats();
-    renderTabla(productos);
-  }
-
-  function poblarCategorias(){
-    const categorias = [...new Set(productos.map(p => p.categoria).filter(Boolean))].sort();
-    const select = document.getElementById('filtroCategoria');
-    const valorActual = select.value;
-    select.innerHTML = '<option value="">Todas las categorías</option>';
-    categorias.forEach(cat => {
-      const opt = document.createElement('option');
-      opt.value = cat;
-      opt.textContent = cat;
-      select.appendChild(opt);
-    });
-    select.value = valorActual;
-
-    const datalist = document.getElementById('listaCategorias');
-    datalist.innerHTML = '';
-    categorias.forEach(cat => {
-      const opt = document.createElement('option');
-      opt.value = cat;
-      datalist.appendChild(opt);
-    });
-  }
-
-  // ── Modal nuevo/editar producto ─────────────────────────────────
-  const modalOverlay = document.getElementById('modalOverlay');
-  const formProducto = document.getElementById('formProducto');
-  const formError = document.getElementById('formError');
-  const modalTitulo = document.getElementById('modalTitulo');
-  const btnEliminar = document.getElementById('btnEliminar');
-  const btnGuardarProducto = document.getElementById('btnGuardarProducto');
-
-  let productoEditando = null; // null = modo "nuevo"; objeto = modo "editar"
-
-  function abrirModal(){
-    productoEditando = null;
-    formProducto.reset();
-    document.getElementById('fUnidad').value = 'unidad';
-    formError.style.display = 'none';
-    modalTitulo.textContent = 'Nuevo producto';
-    btnGuardarProducto.textContent = 'Guardar producto';
-    btnEliminar.style.display = 'none';
-    modalOverlay.style.display = 'flex';
-    document.getElementById('fCodigo').focus();
-  }
-
-  function abrirModalEdicion(id){
-    const producto = productos.find(p => p.id === id);
-    if (!producto) return;
-
-    productoEditando = producto;
-    formError.style.display = 'none';
-    modalTitulo.textContent = 'Editar producto';
-    btnGuardarProducto.textContent = 'Guardar cambios';
-    btnEliminar.style.display = permisosActuales.puede_eliminar ? 'inline-block' : 'none';
-
-    document.getElementById('fCodigo').value = producto.codigo || '';
-    document.getElementById('fNombre').value = producto.nombre || '';
-    document.getElementById('fCategoria').value = producto.categoria || '';
-    document.getElementById('fCosto').value = producto.precio_costo ?? '';
-    document.getElementById('fVenta').value = producto.precio_venta ?? '';
-    document.getElementById('fStock').value = producto.stock_actual ?? '';
-    document.getElementById('fUnidad').value = producto.unidad_medida || 'unidad';
-
-    modalOverlay.style.display = 'flex';
-  }
-
-  function cerrarModal(){
-    modalOverlay.style.display = 'none';
-  }
-
-  document.getElementById('btnNuevo').addEventListener('click', abrirModal);
-  document.getElementById('btnCerrarModal').addEventListener('click', cerrarModal);
-  document.getElementById('btnCancelar').addEventListener('click', cerrarModal);
-  modalOverlay.addEventListener('click', (e) => {
-    if (e.target === modalOverlay) cerrarModal();
-  });
-
-  formProducto.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    formError.style.display = 'none';
-
-    const datosProducto = {
-      codigo: document.getElementById('fCodigo').value.trim() || null,
-      nombre: document.getElementById('fNombre').value.trim(),
-      categoria: document.getElementById('fCategoria').value.trim() || null,
-      precio_costo: parseFloat(document.getElementById('fCosto').value) || 0,
-      precio_venta: parseFloat(document.getElementById('fVenta').value) || 0,
-      stock_actual: parseFloat(document.getElementById('fStock').value) || 0,
-      unidad_medida: document.getElementById('fUnidad').value.trim() || 'unidad'
-    };
-
-    btnGuardarProducto.disabled = true;
-    btnGuardarProducto.textContent = 'Guardando…';
-
-    if (productoEditando){
-      // ── Modo edición: UPDATE ──
-      const { data, error } = await sb
-        .from('catalogo_productos')
-        .update(datosProducto)
-        .eq('id', productoEditando.id)
-        .select()
-        .single();
-
-      btnGuardarProducto.disabled = false;
-      btnGuardarProducto.textContent = 'Guardar cambios';
-
-      if (error){
-        formError.textContent = `No se pudo guardar: ${error.message}`;
-        formError.style.display = 'block';
-        return;
-      }
-
-      const idx = productos.findIndex(p => p.id === productoEditando.id);
-      productos[idx] = data;
-    } else {
-      // ── Modo nuevo: INSERT ──
-      const { data, error } = await sb
-        .from('catalogo_productos')
-        .insert({ ...datosProducto, empresa_id: EMPRESA_ID, activo: true })
-        .select()
-        .single();
-
-      btnGuardarProducto.disabled = false;
-      btnGuardarProducto.textContent = 'Guardar producto';
-
-      if (error){
-        formError.textContent = `No se pudo guardar: ${error.message}`;
-        formError.style.display = 'block';
-        return;
-      }
-
-      productos.push(data);
-    }
-
-    poblarCategorias();
-    renderStats();
-    aplicarFiltros();
-    cerrarModal();
-  });
-
-  btnEliminar.addEventListener('click', async () => {
-    if (!productoEditando) return;
-    const confirmado = confirm(`¿Eliminar "${productoEditando.nombre}"? Esta acción no se puede deshacer.`);
-    if (!confirmado) return;
-
-    btnEliminar.disabled = true;
-    btnEliminar.textContent = 'Eliminando…';
-
-    const { error } = await sb
-      .from('catalogo_productos')
-      .delete()
-      .eq('id', productoEditando.id);
-
-    btnEliminar.disabled = false;
-    btnEliminar.textContent = 'Eliminar';
-
-    if (error){
-      formError.textContent = `No se pudo eliminar: ${error.message}`;
-      formError.style.display = 'block';
-      return;
-    }
-
-    productos = productos.filter(p => p.id !== productoEditando.id);
-    poblarCategorias();
-    renderStats();
-    aplicarFiltros();
-    cerrarModal();
-  });
-
-  function renderStats(){
-    const totalProductos = productos.length;
-    const stockBajo = productos.filter(p => p.stock_actual <= 15).length;
-    const valorInventario = productos.reduce((acc, p) => acc + (p.precio_costo * p.stock_actual), 0);
-
-    document.getElementById('stats').innerHTML = `
-      <div class="stat"><div class="num">${totalProductos}</div><div class="label">productos activos</div></div>
-      <div class="stat"><div class="num">${stockBajo}</div><div class="label">con stock bajo</div></div>
-      <div class="stat"><div class="num">Bs ${valorInventario.toLocaleString('es-BO', {maximumFractionDigits:0})}</div><div class="label">valor de inventario</div></div>
-    `;
-  }
-
-  function renderTabla(lista){
-    const tbody = document.getElementById('tablaBody');
-    if (lista.length === 0){
-      tbody.innerHTML = `<tr><td colspan="7" class="estado">No se encontraron productos.</td></tr>`;
-      return;
-    }
-    tbody.innerHTML = lista.map(p => `
-      <tr>
-        <td class="codigo">${p.codigo || '—'}</td>
-        <td>${p.nombre}</td>
-        <td><span class="categoria-badge">${p.categoria || 'Sin categoría'}</span></td>
-        <td class="stock ${p.stock_actual <= 15 ? 'bajo' : 'ok'}" id="stock-${p.id}">${p.stock_actual} ${p.unidad_medida}</td>
-        <td class="precio">Bs ${Number(p.precio_costo).toFixed(2)}</td>
-        <td class="precio">Bs ${Number(p.precio_venta).toFixed(2)}</td>
-        <td class="ajuste-cell">
-          ${permisosActuales.puede_editar ? `
-            <button class="btn-ajuste" onclick="ajustarStock('${p.id}', -1)">−</button>
-            <button class="btn-ajuste" onclick="ajustarStock('${p.id}', 1)">+</button>
-            <button class="btn-ajuste" onclick="abrirModalEdicion('${p.id}')" title="Editar">✎</button>
-          ` : '<span style="color:var(--text-dim)">—</span>'}
-        </td>
-      </tr>
-    `).join('');
-  }
-
-  async function ajustarStock(id, delta){
-    const producto = productos.find(p => p.id === id);
-    if (!producto) return;
-
-    const nuevoStock = Math.max(0, producto.stock_actual + delta);
-
-    const { error } = await sb
-      .from('catalogo_productos')
-      .update({ stock_actual: nuevoStock })
-      .eq('id', id);
-
-    if (error){
-      alert(`No se pudo actualizar el stock: ${error.message}`);
-      return;
-    }
-
-    producto.stock_actual = nuevoStock;
-    renderStats();
-    aplicarFiltros();
-  }
-
-  function aplicarFiltros(){
-    const texto = document.getElementById('buscador').value.toLowerCase();
-    const categoria = document.getElementById('filtroCategoria').value;
-
-    const filtrados = productos.filter(p => {
-      const coincideTexto = p.nombre.toLowerCase().includes(texto) || (p.codigo || '').toLowerCase().includes(texto);
-      const coincideCategoria = !categoria || p.categoria === categoria;
-      return coincideTexto && coincideCategoria;
-    });
-
-    renderTabla(filtrados);
-  }
-
-  // ── Exportar a Excel ────────────────────────────────────────────
-  document.getElementById('btnExportar').addEventListener('click', () => {
-    const filas = productos.map(p => ({
-      'Código': p.codigo || '',
-      'Nombre': p.nombre,
-      'Categoría': p.categoria || '',
-      'Costo': p.precio_costo,
-      'Venta': p.precio_venta,
-      'Stock': p.stock_actual,
-      'Unidad': p.unidad_medida
-    }));
-
-    const hoja = XLSX.utils.json_to_sheet(filas);
-    const libro = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(libro, hoja, 'Catálogo');
-
-    const fecha = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(libro, `catalogo_${fecha}.xlsx`);
-  });
-
-  // ── Importar desde Excel ────────────────────────────────────────
-  const fileImportar = document.getElementById('fileImportar');
-  const importResumen = document.getElementById('importResumen');
-
-  function normalizarHeader(str){
-    return str.toString().trim().toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // saca tildes
-  }
-
-  function normalizarTexto(str){
-    return (str || '').toString().trim().toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  }
-
-  function detectarDuplicados(filasMapeadas){
-    // Mapas del catálogo YA existente en Supabase (para comparar contra lo cargado)
-    const codigosExistentes = new Map(); // codigo normalizado -> nombre original del producto existente
-    const nombresExistentes = new Map();
-    productos.forEach(p => {
-      if (p.codigo) codigosExistentes.set(normalizarTexto(p.codigo), p.nombre);
-      nombresExistentes.set(normalizarTexto(p.nombre), p.nombre);
-    });
-
-    const duplicados = [];
-    const codigosVistosEnArchivo = new Map(); // codigo normalizado -> fila número
-    const nombresVistosEnArchivo = new Map();
-
-    filasMapeadas.forEach((fila, idx) => {
-      const numeroFila = idx + 2; // +2 porque la fila 1 es el encabezado del Excel
-      const codigoNorm = fila.codigo ? normalizarTexto(fila.codigo) : null;
-      const nombreNorm = normalizarTexto(fila.nombre);
-
-      // ¿Ya existe en el catálogo de Supabase?
-      if (codigoNorm && codigosExistentes.has(codigoNorm)){
-        duplicados.push({ fila: numeroFila, codigo: fila.codigo, nombre: fila.nombre, motivo: `El código ya existe en el catálogo (producto: "${codigosExistentes.get(codigoNorm)}")` });
-      } else if (nombresExistentes.has(nombreNorm)){
-        duplicados.push({ fila: numeroFila, codigo: fila.codigo, nombre: fila.nombre, motivo: `Ya existe un producto con este nombre en el catálogo` });
-      }
-      // ¿Está repetido dentro del mismo archivo?
-      else if (codigoNorm && codigosVistosEnArchivo.has(codigoNorm)){
-        duplicados.push({ fila: numeroFila, codigo: fila.codigo, nombre: fila.nombre, motivo: `Código repetido en la fila ${codigosVistosEnArchivo.get(codigoNorm)} del mismo archivo` });
-      } else if (nombresVistosEnArchivo.has(nombreNorm)){
-        duplicados.push({ fila: numeroFila, codigo: fila.codigo, nombre: fila.nombre, motivo: `Nombre repetido en la fila ${nombresVistosEnArchivo.get(nombreNorm)} del mismo archivo` });
-      }
-
-      if (codigoNorm) codigosVistosEnArchivo.set(codigoNorm, numeroFila);
-      nombresVistosEnArchivo.set(nombreNorm, numeroFila);
-    });
-
-    return duplicados;
-  }
-
-  function mapearFila(fila){
-    // Acepta encabezados en español con o sin tilde, mayúsculas/minúsculas
-    const normalizado = {};
-    Object.keys(fila).forEach(key => {
-      normalizado[normalizarHeader(key)] = fila[key];
-    });
-
-    const buscar = (...alias) => {
-      for (const a of alias){
-        if (normalizado[a] !== undefined && normalizado[a] !== '') return normalizado[a];
-      }
-      return undefined;
-    };
-
-    return {
-      codigo: buscar('codigo', 'código', 'cod') || null,
-      nombre: buscar('nombre', 'producto', 'descripcion') || '',
-      categoria: buscar('categoria', 'categoría', 'rubro') || null,
-      precio_costo: parseFloat(buscar('costo', 'precio costo', 'precio_costo')) || 0,
-      precio_venta: parseFloat(buscar('venta', 'precio venta', 'precio_venta')) || 0,
-      stock_actual: parseFloat(buscar('stock', 'stock actual', 'cantidad')) || 0,
-      unidad_medida: buscar('unidad', 'unidad medida', 'unidad_medida') || 'unidad'
-    };
-  }
-
-  document.getElementById('btnImportar').addEventListener('click', () => {
-    fileImportar.value = '';
-    fileImportar.click();
-  });
-
-  fileImportar.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    importResumen.style.display = 'block';
-    importResumen.innerHTML = 'Leyendo archivo…';
-
-    try {
-      const buffer = await file.arrayBuffer();
-      const libro = XLSX.read(buffer, { type: 'array' });
-      const primeraHoja = libro.Sheets[libro.SheetNames[0]];
-      const filasCrudas = XLSX.utils.sheet_to_json(primeraHoja, { defval: '' });
-
-      if (filasCrudas.length === 0){
-        importResumen.innerHTML = '<b>El archivo no tiene filas para importar.</b>';
-        return;
-      }
-
-      const filasMapeadas = filasCrudas
-        .map(mapearFila)
-        .filter(f => f.nombre && f.nombre.trim() !== '');
-
-      const filasInvalidas = filasCrudas.length - filasMapeadas.length;
-
-      if (filasMapeadas.length === 0){
-        importResumen.innerHTML = `<b>No se encontró ninguna fila válida.</b> Revisá que el Excel tenga una columna "Nombre".`;
-        return;
-      }
-
-      // ── Validación de duplicados: bloquea TODO el archivo si encuentra alguno ──
-      const duplicados = detectarDuplicados(filasMapeadas);
-
-      if (duplicados.length > 0){
-        importResumen.innerHTML = `
-          <b>⚠ Se encontraron ${duplicados.length} producto(s) duplicado(s). No se importó nada.</b>
-          <div class="tabla-duplicados">
-            <table>
-              <thead><tr><th>Fila</th><th>Código</th><th>Nombre</th><th>Motivo</th></tr></thead>
-              <tbody>
-                ${duplicados.map(d => `
-                  <tr>
-                    <td>${d.fila}</td>
-                    <td class="codigo">${d.codigo || '—'}</td>
-                    <td>${d.nombre}</td>
-                    <td>${d.motivo}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-          <p style="margin-top:10px; color:var(--text-dim)">Corregí estas filas en el Excel (código o nombre) y volvé a subir el archivo.</p>
-        `;
-        return;
-      }
-
-      const confirmado = confirm(
-        `Se van a importar ${filasMapeadas.length} productos` +
-        (filasInvalidas > 0 ? ` (${filasInvalidas} filas se descartaron por no tener nombre)` : '') +
-        `. ¿Confirmás?`
-      );
-
-      if (!confirmado){
-        importResumen.style.display = 'none';
-        return;
-      }
-
-      importResumen.innerHTML = 'Importando…';
-
-      const filasParaInsertar = filasMapeadas.map(f => ({
-        ...f,
-        empresa_id: EMPRESA_ID,
-        activo: true
-      }));
-
-      const { data, error } = await sb
-        .from('catalogo_productos')
-        .insert(filasParaInsertar)
-        .select();
-
-      if (error){
-        importResumen.innerHTML = `<b>Error al importar:</b> ${error.message}`;
-        return;
-      }
-
-      productos.push(...data);
-      poblarCategorias();
-      renderStats();
-      aplicarFiltros();
-
-      importResumen.innerHTML = `<b>${data.length} productos importados correctamente.</b>` +
-        (filasInvalidas > 0 ? ` ${filasInvalidas} filas se descartaron por no tener nombre.` : '');
-
-    } catch (err){
-      importResumen.innerHTML = `<b>Error al leer el archivo:</b> ${err.message}`;
-    }
-  });
-
-  document.getElementById('buscador').addEventListener('input', aplicarFiltros);
-  document.getElementById('filtroCategoria').addEventListener('change', aplicarFiltros);
 
   iniciarSesionSiExiste();
 </script>
