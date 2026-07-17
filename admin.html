@@ -295,7 +295,12 @@
   const MODULOS_DISPONIBLES = [
     { clave: 'inventario', titulo: 'Inventario' },
     { clave: 'ventas', titulo: 'Ventas · POS' },
-    { clave: 'credito', titulo: 'Crédito' }
+    { clave: 'credito', titulo: 'Crédito' },
+    { clave: 'finanzas', titulo: 'Finanzas' },
+    { clave: 'clientes', titulo: 'Clientes' },
+    { clave: 'proveedores', titulo: 'Proveedores' },
+    { clave: 'facturacion', titulo: 'Facturación' },
+    { clave: 'reportes', titulo: 'Reportes' }
   ];
 
   document.getElementById('formLogin').addEventListener('submit', async (e) => {
@@ -498,9 +503,10 @@
         .from('empresas').insert({ nombre: nombreEmpresa, rubro }).select().single();
       if (errEmpresa) throw new Error(`Empresa: ${errEmpresa.message}`);
 
-      // 2. Config
+      // 2. Config: por defecto se activan TODOS los módulos del producto
+      //    (se puede acotar después desde "Módulos activos de una empresa")
       const { error: errConfig } = await sb
-        .from('empresa_config').insert({ empresa_id: empresa.id, modulos_activos: ['inventario'] });
+        .from('empresa_config').insert({ empresa_id: empresa.id, modulos_activos: MODULOS_DISPONIBLES.map(m => m.clave) });
       if (errConfig) throw new Error(`Configuración: ${errConfig.message}`);
 
       // 3. Roles por defecto
@@ -512,11 +518,12 @@
         .from('roles').insert({ empresa_id: empresa.id, nombre: 'Operador' }).select().single();
       if (errRolOp) throw new Error(`Rol Operador: ${errRolOp.message}`);
 
-      // 4. Permisos de ambos roles para el módulo inventario
-      const { error: errPermisos } = await sb.from('permisos_modulo').insert([
-        { rol_id: rolAdmin.id, modulo: 'inventario', puede_ver: true, puede_editar: true, puede_eliminar: true },
-        { rol_id: rolOperador.id, modulo: 'inventario', puede_ver: true, puede_editar: true, puede_eliminar: false }
-      ]);
+      // 4. Permisos: Administrador ve/edita/elimina TODO; Operador arranca con inventario y ventas
+      //    (para roles más específicos, usar "Crear rol personalizado" después del alta)
+      const permisosAdmin = MODULOS_DISPONIBLES.map(m => ({ rol_id: rolAdmin.id, modulo: m.clave, puede_ver: true, puede_editar: true, puede_eliminar: true }));
+      const permisosOperador = ['inventario', 'ventas'].map(clave => ({ rol_id: rolOperador.id, modulo: clave, puede_ver: true, puede_editar: true, puede_eliminar: false }));
+
+      const { error: errPermisos } = await sb.from('permisos_modulo').insert([...permisosAdmin, ...permisosOperador]);
       if (errPermisos) throw new Error(`Permisos: ${errPermisos.message}`);
 
       // 5. Vincular al usuario administrador
