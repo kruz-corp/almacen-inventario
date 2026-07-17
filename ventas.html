@@ -120,6 +120,13 @@
   .btn-primary:hover{background:#7ba1f2;}
 
   .filtro-fechas{display:flex; gap:8px; margin-bottom:14px;}
+  .tabs-panel{display:flex; gap:6px; margin-bottom:18px; border-bottom:1px solid var(--line); padding-bottom:0;}
+  .btn-tab{
+    background:none; border:none; color:var(--text-dim); padding:10px 4px; margin-right:18px;
+    font-size:14px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent;
+  }
+  .btn-tab.activo{color:var(--blue); border-bottom-color:var(--blue);}
+  .btn-tab:hover{color:var(--text);}
   .btn-filtro{
     background:var(--bg); border:1px solid var(--line); color:var(--text-dim);
     padding:7px 14px; border-radius:20px; font-size:12px; cursor:pointer;
@@ -210,17 +217,31 @@
     </div>
 
     <div class="panel" style="margin-top:20px">
-      <h2>Historial de ventas</h2>
-      <div class="filtro-fechas">
-        <button class="btn-filtro activo" data-rango="hoy">Hoy</button>
-        <button class="btn-filtro" data-rango="semana">Esta semana</button>
-        <button class="btn-filtro" data-rango="mes">Este mes</button>
+      <div class="tabs-panel">
+        <button class="btn-tab activo" data-tab="ventas" onclick="cambiarTabHistorial('ventas')">Ventas</button>
+        <button class="btn-tab" data-tab="creditos" onclick="cambiarTabHistorial('creditos')">Créditos</button>
       </div>
-      <div class="stats" id="statsHoy"></div>
-      <table>
-        <thead><tr><th>Fecha</th><th>Cliente</th><th style="text-align:right">Total</th><th>Estado</th><th></th></tr></thead>
-        <tbody id="historialBody"><tr><td colspan="5" class="vacio">Cargando…</td></tr></tbody>
-      </table>
+
+      <div id="tabVentas">
+        <div class="filtro-fechas">
+          <button class="btn-filtro activo" data-rango="hoy">Hoy</button>
+          <button class="btn-filtro" data-rango="semana">Esta semana</button>
+          <button class="btn-filtro" data-rango="mes">Este mes</button>
+        </div>
+        <div class="stats" id="statsHoy"></div>
+        <table>
+          <thead><tr><th>Fecha</th><th>Cliente</th><th style="text-align:right">Total</th><th>Estado</th><th></th></tr></thead>
+          <tbody id="historialBody"><tr><td colspan="5" class="vacio">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+
+      <div id="tabCreditos" style="display:none">
+        <div class="stats" id="statsCreditos"></div>
+        <table>
+          <thead><tr><th>Cliente</th><th>Teléfono</th><th style="text-align:right">Límite</th><th style="text-align:right">Saldo</th><th style="text-align:right">Disponible</th></tr></thead>
+          <tbody id="creditosBody"><tr><td colspan="5" class="vacio">Cargando…</td></tr></tbody>
+        </table>
+      </div>
     </div>
 
     <div class="panel" style="margin-top:20px">
@@ -504,19 +525,54 @@
       const deuda = (ventasCredito || []).filter(v => v.cliente_id === c.id).reduce((acc, v) => acc + Number(v.total), 0);
       const pagado = (pagos || []).filter(p => p.cliente_id === c.id).reduce((acc, p) => acc + Number(p.monto), 0);
       const saldo = deuda - pagado;
-      return { ...c, saldo, disponible: Number(c.limite_credito) - saldo };
+      const sinLimite = !(c.limite_credito > 0);
+      return { ...c, saldo, disponible: sinLimite ? null : Number(c.limite_credito) - saldo, sinLimite };
     });
 
     const select = document.getElementById('clienteCreditoSelect');
     if (clientesCredito.length === 0){
-      select.innerHTML = '<option value="">No hay clientes con cuenta de crédito cargados</option>';
+      select.innerHTML = '<option value="">No hay clientes autorizados para crédito cargados</option>';
     } else {
       select.innerHTML = clientesCredito.map(c =>
-        `<option value="${c.id}">${c.nombre} (disponible: Bs ${c.disponible.toFixed(2)})</option>`
+        `<option value="${c.id}">${c.nombre} ${c.sinLimite ? '(sin límite fijo)' : `(disponible: Bs ${c.disponible.toFixed(2)})`}</option>`
       ).join('');
     }
     actualizarAvisoCredito();
+    renderTabCreditos();
   }
+
+  // ── Pestaña Créditos (dentro del panel de historial) ─────────────
+  function cambiarTabHistorial(tab){
+    document.querySelectorAll('.btn-tab').forEach(b => b.classList.toggle('activo', b.dataset.tab === tab));
+    document.getElementById('tabVentas').style.display = tab === 'ventas' ? 'block' : 'none';
+    document.getElementById('tabCreditos').style.display = tab === 'creditos' ? 'block' : 'none';
+  }
+
+  function renderTabCreditos(){
+    const tbody = document.getElementById('creditosBody');
+    if (clientesCredito.length === 0){
+      tbody.innerHTML = '<tr><td colspan="5" class="vacio">No hay clientes autorizados para crédito todavía.</td></tr>';
+    } else {
+      tbody.innerHTML = clientesCredito.map(c => `
+        <tr>
+          <td>${c.nombre}</td>
+          <td>${c.telefono || '—'}</td>
+          <td style="text-align:right">${c.sinLimite ? '<span style="color:var(--text-dim)">Sin límite</span>' : `Bs ${Number(c.limite_credito).toFixed(2)}`}</td>
+          <td style="text-align:right">Bs ${c.saldo.toFixed(2)}</td>
+          <td style="text-align:right">${c.sinLimite ? '—' : `Bs ${c.disponible.toFixed(2)}`}</td>
+        </tr>
+      `).join('');
+    }
+
+    const totalPorCobrar = clientesCredito.reduce((acc, c) => acc + Math.max(0, c.saldo), 0);
+    const excedidos = clientesCredito.filter(c => !c.sinLimite && c.saldo > c.limite_credito).length;
+    document.getElementById('statsCreditos').innerHTML = `
+      <div class="stat"><div class="num">${clientesCredito.length}</div><div class="label">clientes con crédito</div></div>
+      <div class="stat"><div class="num">Bs ${totalPorCobrar.toLocaleString('es-BO', { maximumFractionDigits: 0 })}</div><div class="label">total por cobrar</div></div>
+      <div class="stat"><div class="num" style="color:${excedidos > 0 ? 'var(--warn)' : 'var(--ok)'}">${excedidos}</div><div class="label">con límite excedido</div></div>
+    `;
+  }
+
 
   document.getElementById('metodoPago').addEventListener('change', (e) => {
     const esCredito = e.target.value === 'credito';
@@ -543,7 +599,11 @@
     }
 
     aviso.style.display = 'block';
-    if (totalCarrito > cliente.disponible){
+
+    if (cliente.sinLimite){
+      aviso.className = 'aviso-credito ok';
+      aviso.textContent = `Cliente autorizado para crédito sin límite fijo. Saldo actual: Bs ${cliente.saldo.toFixed(2)}.`;
+    } else if (totalCarrito > cliente.disponible){
       aviso.className = 'aviso-credito excedido';
       aviso.textContent = `⚠ Este monto supera el disponible del cliente (Bs ${cliente.disponible.toFixed(2)}). No se puede cobrar así.`;
     } else {
@@ -579,7 +639,7 @@
         btn.textContent = 'Cobrar';
         return;
       }
-      if (total > cliente.disponible){
+      if (!cliente.sinLimite && total > cliente.disponible){
         cobroError.textContent = `El monto supera el disponible de "${cliente.nombre}" (Bs ${cliente.disponible.toFixed(2)}). Registrá un abono antes de continuar, o reducí la venta.`;
         cobroError.style.display = 'block';
         btn.disabled = false;
