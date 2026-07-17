@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crédito — Cuentas por cobrar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #1b1d1f;
+    --bg-panel: #232629;
+    --bg-panel-hover: #292c30;
+    --line: #34383c;
+    --text: #ece8e0;
+    --text-dim: #9a9d9f;
+    --violet: #a172e0;
+    --violet-dim: #3d2f52;
+    --ok: #7fb069;
+    --warn: #d9634a;
+    --alert: #e0b355;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--text); font-family:'Inter', sans-serif; min-height:100vh;}
+  header{border-bottom:1px solid var(--line); padding:20px 28px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;}
+  .brand{font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:22px;}
+  .brand span{color:var(--violet);}
+  .header-right{display:flex; align-items:center; gap:10px;}
+  .empresa-tag{font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--text-dim); border:1px solid var(--line); padding:4px 10px; border-radius:3px;}
+  .btn-logout{background:none; border:1px solid var(--line); color:var(--text-dim); padding:6px 12px; border-radius:4px; font-size:12px; cursor:pointer;}
+  .btn-logout:hover{color:var(--text); border-color:var(--text-dim);}
+
+  main{max-width:1000px; margin:0 auto; padding:28px;}
+  .stats{display:flex; gap:14px; margin-bottom:20px; flex-wrap:wrap;}
+  .stat{background:var(--bg-panel); border:1px solid var(--line); border-radius:6px; padding:14px 18px; min-width:140px;}
+  .stat .num{font-family:'Space Grotesk', sans-serif; font-size:24px; font-weight:700; color:var(--violet);}
+  .stat .label{font-size:12px; color:var(--text-dim); margin-top:2px;}
+
+  .toolbar{display:flex; gap:10px; margin-bottom:16px;}
+  .toolbar input{flex:1;}
+  input, select{background:var(--bg-panel); border:1px solid var(--line); color:var(--text); padding:10px 14px; border-radius:4px; font-family:'Inter', sans-serif; font-size:14px;}
+  input:focus, select:focus{outline:none; border-color:var(--violet-dim);}
+
+  .btn-primary{background:var(--violet); color:#15111c; border:none; padding:10px 18px; border-radius:4px; font-weight:600; font-size:14px; cursor:pointer; white-space:nowrap;}
+  .btn-primary:hover{background:#b58bea;}
+  .btn-secundario{background:transparent; color:var(--text-dim); border:1px solid var(--line); padding:10px 18px; border-radius:4px; font-size:14px; cursor:pointer;}
+  .btn-secundario:hover{color:var(--text); border-color:var(--text-dim);}
+
+  table{width:100%; border-collapse:collapse; background:var(--bg-panel); border:1px solid var(--line); border-radius:6px; overflow:hidden;}
+  thead th{text-align:left; font-size:11px; text-transform:uppercase; color:var(--text-dim); padding:12px 16px; border-bottom:1px solid var(--line); font-weight:500;}
+  tbody td{padding:13px 16px; border-bottom:1px solid var(--line); font-size:14px;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--bg-panel-hover); cursor:pointer;}
+
+  .saldo{font-family:'IBM Plex Mono', monospace;}
+  .saldo.ok{color:var(--ok);}
+  .saldo.alerta{color:var(--alert);}
+  .saldo.excedido{color:var(--warn); font-weight:700;}
+
+  .estado{text-align:center; padding:50px 20px; color:var(--text-dim); font-size:14px;}
+
+  .modal-overlay{position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px;}
+  .modal{background:var(--bg-panel); border:1px solid var(--line); border-radius:8px; width:100%; max-width:480px; max-height:88vh; overflow-y:auto; padding:24px;}
+  .modal-header{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;}
+  .modal-header h2{font-family:'Space Grotesk', sans-serif; font-size:18px;}
+  .btn-cerrar{background:none; border:none; color:var(--text-dim); font-size:16px; cursor:pointer; padding:4px 8px;}
+  .btn-cerrar:hover{color:var(--text);}
+  .form-row{margin-bottom:14px; display:flex; flex-direction:column; gap:6px;}
+  .form-row label{font-size:12px; color:var(--text-dim); text-transform:uppercase;}
+  .form-row-split{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .form-error{background:rgba(217,99,74,0.1); border:1px solid var(--warn); color:var(--warn); padding:10px 12px; border-radius:4px; font-size:13px; margin-bottom:14px;}
+  .form-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:18px;}
+
+  .resumen-cliente{background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:14px; margin-bottom:16px; font-size:13px;}
+  .resumen-cliente .fila{display:flex; justify-content:space-between; padding:4px 0;}
+  .resumen-cliente .fila .label{color:var(--text-dim);}
+
+  .movimiento{display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--line); font-size:13px;}
+  .movimiento:last-child{border-bottom:none;}
+  .movimiento .fecha{color:var(--text-dim); font-size:11px; font-family:'IBM Plex Mono', monospace;}
+  .movimiento.venta .monto{color:var(--warn);}
+  .movimiento.pago .monto{color:var(--ok);}
+
+  .login-screen{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;}
+  .login-box{background:var(--bg-panel); border:1px solid var(--line); border-radius:8px; padding:36px; width:100%; max-width:380px;}
+  .login-sub{color:var(--text-dim); font-size:13px; margin-bottom:24px;}
+  .btn-full{width:100%; margin-top:6px;}
+</style>
+</head>
+<body>
+
+<div id="loginScreen" class="login-screen">
+  <div class="login-box">
+    <div class="brand">crédito<span>·</span>cxc</div>
+    <div class="login-sub">Iniciá sesión para gestionar cuentas por cobrar</div>
+    <form id="formLogin">
+      <div class="form-row">
+        <label>Correo</label>
+        <input type="email" id="loginEmail" required placeholder="tu@empresa.com" autocomplete="username">
+      </div>
+      <div class="form-row">
+        <label>Contraseña</label>
+        <input type="password" id="loginPassword" required placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <div id="loginError" class="form-error" style="display:none"></div>
+      <button type="submit" class="btn-primary btn-full">Ingresar</button>
+    </form>
+  </div>
+</div>
+
+<div id="sinAccesoScreen" class="login-screen" style="display:none">
+  <div class="login-box">
+    <div class="brand">crédito<span>·</span>cxc</div>
+    <div class="login-sub">Tu rol no tiene acceso al módulo de crédito.</div>
+    <button id="btnLogoutSinAcceso" class="btn-primary btn-full">Cerrar sesión</button>
+  </div>
+</div>
+
+<div id="appScreen" style="display:none">
+
+<header>
+  <div class="brand">crédito<span>·</span>cxc</div>
+  <div class="header-right">
+    <div class="empresa-tag" id="empresaTag">cargando…</div>
+    <button id="btnLogout" class="btn-logout">Salir</button>
+  </div>
+</header>
+
+<main>
+  <div class="stats" id="statsGenerales"></div>
+
+  <div class="toolbar">
+    <input type="text" id="buscadorCliente" placeholder="Buscar cliente…">
+    <button id="btnNuevoCliente" class="btn-primary">+ Nuevo cliente</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>Cliente</th><th>Teléfono</th><th style="text-align:right">Límite</th><th style="text-align:right">Saldo</th><th style="text-align:right">Disponible</th></tr>
+    </thead>
+    <tbody id="clientesBody"><tr><td colspan="5" class="estado">Cargando…</td></tr></tbody>
+  </table>
+</main>
+
+<!-- Modal: nuevo / editar cliente -->
+<div id="modalCliente" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="tituloModalCliente">Nuevo cliente</h2>
+      <button class="btn-cerrar" onclick="cerrarModalCliente()">✕</button>
+    </div>
+    <form id="formCliente">
+      <div class="form-row">
+        <label>Nombre / Razón social *</label>
+        <input type="text" id="fClienteNombre" required placeholder="Constructora Andina S.R.L.">
+      </div>
+      <div class="form-row-split">
+        <div class="form-row">
+          <label>Teléfono</label>
+          <input type="text" id="fClienteTelefono" placeholder="70011122">
+        </div>
+        <div class="form-row">
+          <label>Límite de crédito (Bs)</label>
+          <input type="number" step="0.01" id="fClienteLimite" placeholder="0.00">
+        </div>
+      </div>
+      <div id="clienteError" class="form-error" style="display:none"></div>
+      <div class="form-actions">
+        <button type="button" class="btn-secundario" onclick="cerrarModalCliente()">Cancelar</button>
+        <button type="submit" id="btnGuardarCliente" class="btn-primary">Guardar cliente</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: detalle de cuenta + registrar abono -->
+<div id="modalDetalle" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="tituloModalDetalle">Cuenta del cliente</h2>
+      <button class="btn-cerrar" onclick="cerrarModalDetalle()">✕</button>
+    </div>
+
+    <div class="resumen-cliente" id="resumenCliente"></div>
+
+    <form id="formAbono">
+      <div class="form-row-split">
+        <div class="form-row">
+          <label>Monto del abono (Bs) *</label>
+          <input type="number" step="0.01" id="fAbonoMonto" required placeholder="0.00">
+        </div>
+        <div class="form-row">
+          <label>Método</label>
+          <select id="fAbonoMetodo">
+            <option value="efectivo">Efectivo</option>
+            <option value="transferencia">Transferencia</option>
+            <option value="tarjeta">Tarjeta</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>Nota (opcional)</label>
+        <input type="text" id="fAbonoNota" placeholder="Ej: pago parcial factura #123">
+      </div>
+      <div id="abonoError" class="form-error" style="display:none"></div>
+      <button type="submit" id="btnRegistrarAbono" class="btn-primary btn-full">Registrar abono</button>
+    </form>
+
+    <h2 style="margin-top:22px; font-size:14px">Movimientos</h2>
+    <div id="listaMovimientos" style="margin-top:10px"></div>
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = 'https://pgjwerbixkbbyqamsicp.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_36d4hftRPT8XEoOR7Vm-Rw_TBQAkMBy';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let EMPRESA_ID = null;
+  let usuarioActual = null;
+  let permisosActuales = { puede_ver: false, puede_editar: false, puede_eliminar: false };
+  let clientes = [];       // clientes con saldo calculado
+  let clienteAbierto = null;
+
+  const loginScreen = document.getElementById('loginScreen');
+  const sinAccesoScreen = document.getElementById('sinAccesoScreen');
+  const appScreen = document.getElementById('appScreen');
+
+  async function iniciarSesionSiExiste(){
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) await entrarConUsuario(session.user);
+  }
+
+  async function entrarConUsuario(authUser){
+    const { data: usuario, error } = await sb
+      .from('usuarios').select('*, empresas(nombre, rubro)')
+      .eq('auth_user_id', authUser.id).single();
+
+    if (error || !usuario){
+      document.getElementById('loginError').textContent = 'Esta cuenta no está vinculada a ninguna empresa.';
+      document.getElementById('loginError').style.display = 'block';
+      await sb.auth.signOut();
+      return;
+    }
+
+    usuarioActual = usuario;
+    EMPRESA_ID = usuario.empresa_id;
+
+    const { data: permiso } = await sb
+      .from('permisos_modulo')
+      .select('puede_ver, puede_editar, puede_eliminar')
+      .eq('rol_id', usuario.rol_id).eq('modulo', 'credito').maybeSingle();
+
+    permisosActuales = permiso || { puede_ver: false, puede_editar: false, puede_eliminar: false };
+
+    if (!permisosActuales.puede_ver){
+      loginScreen.style.display = 'none';
+      sinAccesoScreen.style.display = 'flex';
+      return;
+    }
+
+    loginScreen.style.display = 'none';
+    appScreen.style.display = 'block';
+    document.getElementById('empresaTag').textContent = `${usuario.empresas.nombre} · ${usuario.nombre_completo}`;
+    document.getElementById('btnNuevoCliente').style.display = permisosActuales.puede_editar ? 'inline-block' : 'none';
+
+    await cargarClientes();
+  }
+
+  document.getElementById('formLogin').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const loginError = document.getElementById('loginError');
+    loginError.style.display = 'none';
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error){
+      loginError.textContent = 'Correo o contraseña incorrectos.';
+      loginError.style.display = 'block';
+      return;
+    }
+    await entrarConUsuario(data.user);
+  });
+
+  document.getElementById('btnLogout').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
+  document.getElementById('btnLogoutSinAcceso').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
+
+  // ── Cargar clientes con su saldo calculado ───────────────────────
+  async function cargarClientes(){
+    const { data: listaClientes, error: errClientes } = await sb
+      .from('clientes').select('*').eq('empresa_id', EMPRESA_ID).eq('activo', true).order('nombre');
+
+    if (errClientes){
+      document.getElementById('clientesBody').innerHTML = `<tr><td colspan="5" class="estado">Error: ${errClientes.message}</td></tr>`;
+      return;
+    }
+
+    const { data: ventasCredito } = await sb
+      .from('ventas').select('cliente_id, total')
+      .eq('empresa_id', EMPRESA_ID).eq('metodo_pago', 'credito').eq('estado', 'completada');
+
+    const { data: pagos } = await sb
+      .from('pagos_credito').select('cliente_id, monto')
+      .eq('empresa_id', EMPRESA_ID);
+
+    clientes = listaClientes.map(c => {
+      const deuda = (ventasCredito || []).filter(v => v.cliente_id === c.id).reduce((acc, v) => acc + Number(v.total), 0);
+      const pagado = (pagos || []).filter(p => p.cliente_id === c.id).reduce((acc, p) => acc + Number(p.monto), 0);
+      const saldo = deuda - pagado;
+      return { ...c, saldo, disponible: Number(c.limite_credito) - saldo };
+    });
+
+    renderClientes(clientes);
+    renderStatsGenerales();
+  }
+
+  function renderStatsGenerales(){
+    const totalPorCobrar = clientes.reduce((acc, c) => acc + Math.max(0, c.saldo), 0);
+    const clientesExcedidos = clientes.filter(c => c.saldo > c.limite_credito && c.limite_credito > 0).length;
+    document.getElementById('statsGenerales').innerHTML = `
+      <div class="stat"><div class="num">${clientes.length}</div><div class="label">clientes con crédito</div></div>
+      <div class="stat"><div class="num">Bs ${totalPorCobrar.toLocaleString('es-BO', { maximumFractionDigits: 0 })}</div><div class="label">total por cobrar</div></div>
+      <div class="stat"><div class="num" style="color:${clientesExcedidos > 0 ? 'var(--warn)' : 'var(--ok)'}">${clientesExcedidos}</div><div class="label">con límite excedido</div></div>
+    `;
+  }
+
+  function claseSaldo(c){
+    if (c.limite_credito <= 0) return 'ok';
+    if (c.saldo > c.limite_credito) return 'excedido';
+    if (c.saldo > c.limite_credito * 0.8) return 'alerta';
+    return 'ok';
+  }
+
+  function renderClientes(lista){
+    const tbody = document.getElementById('clientesBody');
+    if (lista.length === 0){
+      tbody.innerHTML = '<tr><td colspan="5" class="estado">No hay clientes con cuenta de crédito todavía.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = lista.map(c => `
+      <tr onclick="abrirModalDetalle('${c.id}')">
+        <td>${c.nombre}</td>
+        <td>${c.telefono || '—'}</td>
+        <td style="text-align:right" class="saldo">Bs ${Number(c.limite_credito).toFixed(2)}</td>
+        <td style="text-align:right" class="saldo ${claseSaldo(c)}">Bs ${c.saldo.toFixed(2)}</td>
+        <td style="text-align:right" class="saldo ${c.disponible < 0 ? 'excedido' : 'ok'}">Bs ${c.disponible.toFixed(2)}</td>
+      </tr>
+    `).join('');
+  }
+
+  document.getElementById('buscadorCliente').addEventListener('input', (e) => {
+    const texto = e.target.value.toLowerCase();
+    renderClientes(clientes.filter(c => c.nombre.toLowerCase().includes(texto)));
+  });
+
+  // ── Modal nuevo cliente ───────────────────────────────────────────
+  document.getElementById('btnNuevoCliente').addEventListener('click', () => {
+    document.getElementById('formCliente').reset();
+    document.getElementById('clienteError').style.display = 'none';
+    document.getElementById('tituloModalCliente').textContent = 'Nuevo cliente';
+    document.getElementById('modalCliente').style.display = 'flex';
+  });
+
+  function cerrarModalCliente(){ document.getElementById('modalCliente').style.display = 'none'; }
+
+  document.getElementById('formCliente').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const clienteError = document.getElementById('clienteError');
+    clienteError.style.display = 'none';
+    const btn = document.getElementById('btnGuardarCliente');
+    btn.disabled = true; btn.textContent = 'Guardando…';
+
+    const { error } = await sb.from('clientes').insert({
+      empresa_id: EMPRESA_ID,
+      nombre: document.getElementById('fClienteNombre').value.trim(),
+      telefono: document.getElementById('fClienteTelefono').value.trim() || null,
+      limite_credito: parseFloat(document.getElementById('fClienteLimite').value) || 0
+    });
+
+    btn.disabled = false; btn.textContent = 'Guardar cliente';
+
+    if (error){
+      clienteError.textContent = `No se pudo guardar: ${error.message}`;
+      clienteError.style.display = 'block';
+      return;
+    }
+
+    cerrarModalCliente();
+    await cargarClientes();
+  });
+
+  // ── Modal detalle de cuenta + abonos ─────────────────────────────
+  async function abrirModalDetalle(clienteId){
+    clienteAbierto = clientes.find(c => c.id === clienteId);
+    if (!clienteAbierto) return;
+
+    document.getElementById('tituloModalDetalle').textContent = clienteAbierto.nombre;
+    document.getElementById('resumenCliente').innerHTML = `
+      <div class="fila"><span class="label">Límite de crédito</span><span>Bs ${Number(clienteAbierto.limite_credito).toFixed(2)}</span></div>
+      <div class="fila"><span class="label">Saldo pendiente</span><span class="saldo ${claseSaldo(clienteAbierto)}">Bs ${clienteAbierto.saldo.toFixed(2)}</span></div>
+      <div class="fila"><span class="label">Disponible</span><span class="saldo ${clienteAbierto.disponible < 0 ? 'excedido' : 'ok'}">Bs ${clienteAbierto.disponible.toFixed(2)}</span></div>
+    `;
+
+    document.getElementById('formAbono').reset();
+    document.getElementById('abonoError').style.display = 'none';
+    document.getElementById('btnRegistrarAbono').style.display = permisosActuales.puede_editar ? 'block' : 'none';
+
+    await cargarMovimientos(clienteId);
+    document.getElementById('modalDetalle').style.display = 'flex';
+  }
+
+  function cerrarModalDetalle(){ document.getElementById('modalDetalle').style.display = 'none'; clienteAbierto = null; }
+
+  async function cargarMovimientos(clienteId){
+    const { data: ventasCliente } = await sb
+      .from('ventas').select('id, total, created_at, estado')
+      .eq('cliente_id', clienteId).eq('metodo_pago', 'credito').order('created_at', { ascending: false });
+
+    const { data: pagosCliente } = await sb
+      .from('pagos_credito').select('*')
+      .eq('cliente_id', clienteId).order('created_at', { ascending: false });
+
+    const movimientos = [
+      ...(ventasCliente || []).filter(v => v.estado === 'completada').map(v => ({
+        tipo: 'venta', fecha: v.created_at, monto: Number(v.total), detalle: 'Compra a crédito'
+      })),
+      ...(pagosCliente || []).map(p => ({
+        tipo: 'pago', fecha: p.created_at, monto: Number(p.monto), detalle: p.nota || `Abono (${p.metodo_pago})`
+      }))
+    ].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+    const cont = document.getElementById('listaMovimientos');
+    if (movimientos.length === 0){
+      cont.innerHTML = '<div style="color:var(--text-dim); font-size:13px">Sin movimientos todavía.</div>';
+      return;
+    }
+
+    cont.innerHTML = movimientos.map(m => `
+      <div class="movimiento ${m.tipo}">
+        <div>
+          <div>${m.detalle}</div>
+          <div class="fecha">${new Date(m.fecha).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
+        </div>
+        <div class="monto">${m.tipo === 'venta' ? '+' : '−'} Bs ${m.monto.toFixed(2)}</div>
+      </div>
+    `).join('');
+  }
+
+  document.getElementById('formAbono').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!clienteAbierto) return;
+
+    const abonoError = document.getElementById('abonoError');
+    abonoError.style.display = 'none';
+    const btn = document.getElementById('btnRegistrarAbono');
+    btn.disabled = true; btn.textContent = 'Registrando…';
+
+    const monto = parseFloat(document.getElementById('fAbonoMonto').value);
+
+    if (!monto || monto <= 0){
+      abonoError.textContent = 'Ingresá un monto válido.';
+      abonoError.style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Registrar abono';
+      return;
+    }
+
+    const { error } = await sb.from('pagos_credito').insert({
+      empresa_id: EMPRESA_ID,
+      cliente_id: clienteAbierto.id,
+      usuario_id: usuarioActual.id,
+      monto,
+      metodo_pago: document.getElementById('fAbonoMetodo').value,
+      nota: document.getElementById('fAbonoNota').value.trim() || null
+    });
+
+    btn.disabled = false; btn.textContent = 'Registrar abono';
+
+    if (error){
+      abonoError.textContent = `No se pudo registrar: ${error.message}`;
+      abonoError.style.display = 'block';
+      return;
+    }
+
+    await cargarClientes();
+    const clienteActualizado = clientes.find(c => c.id === clienteAbierto.id);
+    clienteAbierto = clienteActualizado;
+    document.getElementById('formAbono').reset();
+    await abrirModalDetalle(clienteAbierto.id);
+  });
+
+  iniciarSesionSiExiste();
+</script>
+
+</body>
+</html>
