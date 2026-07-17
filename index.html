@@ -169,6 +169,7 @@
     <section id="view-finanzas" class="view"></section>
     <section id="view-clientes" class="view"></section>
     <section id="view-proveedores" class="view"></section>
+    <section id="view-facturacion" class="view"></section>
     <section id="view-config" class="view"></section>
   </main>
 </div>
@@ -192,7 +193,8 @@ const DEFINICION_MODULOS = [
   { clave: 'credito',    titulo: 'Crédito', icono: '💳' },
   { clave: 'finanzas',   titulo: 'Finanzas', icono: '💰' },
   { clave: 'clientes',   titulo: 'Clientes', icono: '👥' },
-  { clave: 'proveedores', titulo: 'Proveedores', icono: '🚚' }
+  { clave: 'proveedores', titulo: 'Proveedores', icono: '🚚' },
+  { clave: 'facturacion', titulo: 'Facturación', icono: '📄' }
 ];
 
 function hexToRgb(hex){
@@ -322,6 +324,7 @@ function irA(clave){
   else if (clave === 'finanzas') ModuloFinanzas.mostrar();
   else if (clave === 'clientes') ModuloClientes.mostrar();
   else if (clave === 'proveedores') ModuloProveedores.mostrar();
+  else if (clave === 'facturacion') ModuloFacturacion.mostrar();
   else if (clave === 'config') ModuloConfig.mostrar();
 }
 
@@ -1867,6 +1870,323 @@ const ModuloProveedores = (function(){
   function listaParaSelect(){ return proveedores; }
 
   return { mostrar, abrirModalEdicion, cerrarModal, desactivarProveedor, listaParaSelect };
+})();
+
+
+const ModuloFacturacion = (function(){
+  let cargado = false;
+  let facturas = [];
+  let clientesCache = [];
+  let productosCache = [];
+  let itemsFactura = [];
+
+  function permisos(){ return permisosPorModulo.facturacion || { puede_editar:false, puede_eliminar:false }; }
+
+  async function mostrar(){
+    const el = document.getElementById('view-facturacion');
+    if (!cargado){
+      el.innerHTML = plantilla();
+      bindEventos();
+      cargado = true;
+      await cargarFacturas();
+    }
+  }
+
+  function plantilla(){
+    return `
+      <h1>Facturación</h1>
+      <div style="background:rgba(224,179,85,0.1); border:1px solid var(--alert); color:var(--alert); padding:10px 14px; border-radius:6px; font-size:12px; margin-bottom:18px;">
+        ⚠ Documentos internos de control — <b>no tienen validez fiscal</b>. Para facturar oficialmente hace falta registrarse como facturador electrónico ante el SIN.
+      </div>
+      <div class="stats" id="fc-stats"></div>
+      <div class="toolbar">
+        <button id="fc-btnNuevo" class="btn-primary" style="${permisos().puede_editar?'':'display:none'}">+ Nueva factura</button>
+      </div>
+      <table><thead><tr><th>N°</th><th>Fecha</th><th>Cliente</th><th style="text-align:right">Total</th><th>Estado</th><th></th></tr></thead>
+        <tbody id="fc-tablaBody"><tr><td colspan="6" class="estado-vacio">Cargando…</td></tr></tbody></table>
+
+      <div id="fc-modalNueva" class="modal-overlay" style="display:none">
+        <div class="modal" style="max-width:640px">
+          <div class="modal-header"><h2>Nueva factura</h2><button class="btn-cerrar" onclick="ModuloFacturacion.cerrarModalNueva()">✕</button></div>
+
+          <div class="form-row-split">
+            <div class="form-row"><label>Cliente registrado</label>
+              <select id="fc-clienteSelect"><option value="">— Sin registrar / ocasional —</option></select>
+            </div>
+            <div class="form-row"><label>Nombre (si no está registrado)</label><input type="text" id="fc-clienteNombre" placeholder="Nombre del cliente"></div>
+          </div>
+          <div class="form-row"><label>NIT / CI</label><input type="text" id="fc-clienteNit" placeholder="0000000"></div>
+
+          <div style="border-top:1px solid var(--line); margin:16px 0"></div>
+
+          <div class="form-row"><label>Buscar producto para agregar</label><input type="text" id="fc-buscadorProducto" placeholder="Nombre o código…"></div>
+          <div id="fc-listaProductos" style="max-height:140px; overflow-y:auto; margin-bottom:10px"></div>
+
+          <div style="display:grid; grid-template-columns:2fr 1fr 1fr auto; gap:8px; align-items:end; margin-bottom:10px;">
+            <div class="form-row" style="margin:0"><label>Descripción manual</label><input type="text" id="fc-itemDescripcion" placeholder="Servicio, ítem libre…"></div>
+            <div class="form-row" style="margin:0"><label>Cant.</label><input type="number" step="1" id="fc-itemCantidad" value="1"></div>
+            <div class="form-row" style="margin:0"><label>Precio unit.</label><input type="number" step="0.01" id="fc-itemPrecio"></div>
+            <button type="button" id="fc-btnAgregarItem" class="btn-secundario">+ Agregar</button>
+          </div>
+
+          <table><thead><tr><th>Ítem</th><th style="text-align:center">Cant.</th><th style="text-align:right">Precio</th><th style="text-align:right">Subtotal</th><th></th></tr></thead>
+            <tbody id="fc-itemsBody"><tr><td colspan="5" class="estado-vacio">Sin ítems agregados</td></tr></tbody></table>
+
+          <div class="form-row-split" style="margin-top:14px">
+            <div class="form-row"><label>Descuento (Bs)</label><input type="number" step="0.01" id="fc-descuento" value="0"></div>
+            <div class="form-row"><label>IVA (%)</label><input type="number" step="0.01" id="fc-ivaPorcentaje" value="13"></div>
+          </div>
+
+          <div id="fc-resumenTotales" style="background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:12px 16px; font-size:13px; margin:12px 0;"></div>
+
+          <div id="fc-formError" class="form-error" style="display:none"></div>
+          <div class="form-actions">
+            <div style="flex:1"></div>
+            <button type="button" class="btn-secundario" onclick="ModuloFacturacion.cerrarModalNueva()">Cancelar</button>
+            <button type="button" id="fc-btnGuardarFactura" class="btn-primary">Emitir factura</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="fc-modalVer" class="modal-overlay" style="display:none">
+        <div class="modal" style="background:#fff; color:#111; max-width:380px">
+          <div class="no-print" style="display:flex; justify-content:space-between; margin-bottom:10px">
+            <button class="btn-secundario" onclick="ModuloFacturacion.cerrarModalVer()">Cerrar</button>
+            <button class="btn-primary" style="width:auto" onclick="window.print()">🖨 Imprimir</button>
+          </div>
+          <div id="fc-verContenido" style="font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.6;"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  function bindEventos(){
+    document.getElementById('fc-btnNuevo').addEventListener('click', abrirModalNueva);
+    document.getElementById('fc-buscadorProducto').addEventListener('input', (e) => {
+      const t = e.target.value.toLowerCase();
+      if (!t){ document.getElementById('fc-listaProductos').innerHTML = ''; return; }
+      renderListaProductos(productosCache.filter(p => p.nombre.toLowerCase().includes(t) || (p.codigo||'').toLowerCase().includes(t)).slice(0,6));
+    });
+    document.getElementById('fc-btnAgregarItem').addEventListener('click', agregarItemManual);
+    document.getElementById('fc-clienteSelect').addEventListener('change', (e) => {
+      const cliente = clientesCache.find(c => c.id === e.target.value);
+      document.getElementById('fc-clienteNombre').value = cliente ? cliente.nombre : '';
+    });
+    document.getElementById('fc-descuento').addEventListener('input', renderResumenTotales);
+    document.getElementById('fc-ivaPorcentaje').addEventListener('input', renderResumenTotales);
+    document.getElementById('fc-btnGuardarFactura').addEventListener('click', guardarFactura);
+  }
+
+  async function cargarFacturas(){
+    const { data, error } = await sb.from('facturas').select('*').eq('empresa_id', EMPRESA_ID).order('numero', {ascending:false});
+    if (error){
+      document.getElementById('fc-tablaBody').innerHTML = `<tr><td colspan="6" class="estado-vacio">Error: ${error.message}</td></tr>`;
+      return;
+    }
+    facturas = data;
+    renderStats();
+    renderTabla();
+  }
+
+  function renderStats(){
+    const emitidas = facturas.filter(f => f.estado === 'emitida');
+    const totalFacturado = emitidas.reduce((a,f)=>a+Number(f.total),0);
+    document.getElementById('fc-stats').innerHTML = `
+      <div class="stat"><div class="num">${emitidas.length}</div><div class="label">facturas emitidas</div></div>
+      <div class="stat"><div class="num">Bs ${totalFacturado.toLocaleString('es-BO',{maximumFractionDigits:0})}</div><div class="label">total facturado</div></div>`;
+  }
+
+  function renderTabla(){
+    const tbody = document.getElementById('fc-tablaBody');
+    tbody.innerHTML = facturas.length === 0 ? '<tr><td colspan="6" class="estado-vacio">Todavía no emitiste facturas.</td></tr>' :
+      facturas.map(f => `
+        <tr style="cursor:pointer" onclick="ModuloFacturacion.verFactura('${f.id}')">
+          <td class="codigo">N° ${String(f.numero).padStart(4,'0')}</td>
+          <td>${new Date(f.created_at).toLocaleDateString('es-BO',{day:'2-digit',month:'2-digit',year:'numeric'})}</td>
+          <td>${f.cliente_nombre || 'Sin registrar'}</td>
+          <td style="text-align:right">Bs ${Number(f.total).toFixed(2)}</td>
+          <td><span style="font-size:11px;padding:2px 8px;border-radius:20px;${f.estado==='emitida'?'background:rgba(127,176,105,0.12);color:var(--ok)':'background:rgba(217,99,74,0.12);color:var(--warn);text-decoration:line-through'}">${f.estado}</span></td>
+          <td>${(f.estado==='emitida' && permisos().puede_eliminar) ? `<button class="btn-danger" style="padding:4px 10px;font-size:11px" onclick="event.stopPropagation(); ModuloFacturacion.anularFactura('${f.id}')">Anular</button>` : ''}</td>
+        </tr>
+      `).join('');
+  }
+
+  async function abrirModalNueva(){
+    itemsFactura = [];
+    document.getElementById('fc-clienteNombre').value = '';
+    document.getElementById('fc-clienteNit').value = '';
+    document.getElementById('fc-buscadorProducto').value = '';
+    document.getElementById('fc-listaProductos').innerHTML = '';
+    document.getElementById('fc-itemDescripcion').value = '';
+    document.getElementById('fc-itemCantidad').value = 1;
+    document.getElementById('fc-itemPrecio').value = '';
+    document.getElementById('fc-descuento').value = 0;
+    document.getElementById('fc-ivaPorcentaje').value = 13;
+    document.getElementById('fc-formError').style.display = 'none';
+    renderItems();
+
+    const { data: clientesData } = await sb.from('clientes').select('id, nombre, telefono').eq('empresa_id', EMPRESA_ID).eq('activo', true).order('nombre');
+    clientesCache = clientesData || [];
+    document.getElementById('fc-clienteSelect').innerHTML = '<option value="">— Sin registrar / ocasional —</option>' +
+      clientesCache.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
+
+    const { data: productosData } = await sb.from('catalogo_productos').select('id, nombre, codigo, precio_venta').eq('empresa_id', EMPRESA_ID).eq('activo', true);
+    productosCache = productosData || [];
+
+    document.getElementById('fc-modalNueva').style.display = 'flex';
+  }
+
+  function cerrarModalNueva(){ document.getElementById('fc-modalNueva').style.display = 'none'; }
+
+  function renderListaProductos(lista){
+    document.getElementById('fc-listaProductos').innerHTML = lista.map(p => `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; border-bottom:1px solid var(--line); font-size:13px">
+        <span>${p.nombre} — Bs ${Number(p.precio_venta).toFixed(2)}</span>
+        <button type="button" class="btn-icono" onclick="ModuloFacturacion.agregarItemProducto('${p.id}')">+</button>
+      </div>
+    `).join('');
+  }
+
+  function agregarItemProducto(productoId){
+    const p = productosCache.find(x => x.id === productoId);
+    if (!p) return;
+    itemsFactura.push({ descripcion: p.nombre, cantidad: 1, precio_unitario: Number(p.precio_venta) });
+    document.getElementById('fc-buscadorProducto').value = '';
+    document.getElementById('fc-listaProductos').innerHTML = '';
+    renderItems();
+  }
+
+  function agregarItemManual(){
+    const descripcion = document.getElementById('fc-itemDescripcion').value.trim();
+    const cantidad = parseFloat(document.getElementById('fc-itemCantidad').value) || 1;
+    const precio = parseFloat(document.getElementById('fc-itemPrecio').value) || 0;
+    if (!descripcion || precio <= 0) return;
+    itemsFactura.push({ descripcion, cantidad, precio_unitario: precio });
+    document.getElementById('fc-itemDescripcion').value = '';
+    document.getElementById('fc-itemCantidad').value = 1;
+    document.getElementById('fc-itemPrecio').value = '';
+    renderItems();
+  }
+
+  function quitarItem(idx){ itemsFactura.splice(idx, 1); renderItems(); }
+
+  function renderItems(){
+    const tbody = document.getElementById('fc-itemsBody');
+    tbody.innerHTML = itemsFactura.length === 0 ? '<tr><td colspan="5" class="estado-vacio">Sin ítems agregados</td></tr>' :
+      itemsFactura.map((i, idx) => `
+        <tr><td>${i.descripcion}</td><td style="text-align:center">${i.cantidad}</td>
+          <td style="text-align:right">Bs ${i.precio_unitario.toFixed(2)}</td>
+          <td style="text-align:right">Bs ${(i.cantidad*i.precio_unitario).toFixed(2)}</td>
+          <td><button type="button" style="background:none;border:none;color:var(--warn);cursor:pointer" onclick="ModuloFacturacion.quitarItem(${idx})">✕</button></td></tr>
+      `).join('');
+    renderResumenTotales();
+  }
+
+  function calcularTotales(){
+    const subtotal = itemsFactura.reduce((a,i) => a + i.cantidad*i.precio_unitario, 0);
+    const descuento = parseFloat(document.getElementById('fc-descuento').value) || 0;
+    const ivaPorcentaje = parseFloat(document.getElementById('fc-ivaPorcentaje').value) || 0;
+    const baseConDescuento = Math.max(0, subtotal - descuento);
+    const iva = baseConDescuento * (ivaPorcentaje / 100);
+    const total = baseConDescuento + iva;
+    return { subtotal, descuento, iva, total, ivaPorcentaje };
+  }
+
+  function renderResumenTotales(){
+    const { subtotal, descuento, iva, total } = calcularTotales();
+    document.getElementById('fc-resumenTotales').innerHTML = `
+      <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Subtotal</span><span>Bs ${subtotal.toFixed(2)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:2px 0"><span>Descuento</span><span>− Bs ${descuento.toFixed(2)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:2px 0"><span>IVA</span><span>+ Bs ${iva.toFixed(2)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0 0; margin-top:6px; border-top:1px solid var(--line); font-weight:700; color:var(--accent)"><span>TOTAL</span><span>Bs ${total.toFixed(2)}</span></div>
+    `;
+  }
+
+  async function guardarFactura(){
+    const formError = document.getElementById('fc-formError');
+    formError.style.display = 'none';
+
+    if (itemsFactura.length === 0){
+      formError.textContent = 'Agregá al menos un ítem antes de emitir la factura.';
+      formError.style.display = 'block';
+      return;
+    }
+
+    const btn = document.getElementById('fc-btnGuardarFactura');
+    btn.disabled = true; btn.textContent = 'Emitiendo…';
+
+    const { subtotal, descuento, iva, total } = calcularTotales();
+    const clienteId = document.getElementById('fc-clienteSelect').value || null;
+    const clienteNombre = document.getElementById('fc-clienteNombre').value.trim() || null;
+    const clienteNit = document.getElementById('fc-clienteNit').value.trim() || null;
+
+    try {
+      const { data: maxData } = await sb.from('facturas').select('numero').eq('empresa_id', EMPRESA_ID).order('numero', {ascending:false}).limit(1);
+      const siguienteNumero = (maxData && maxData.length > 0) ? maxData[0].numero + 1 : 1;
+
+      const { data: factura, error: e1 } = await sb.from('facturas').insert({
+        empresa_id: EMPRESA_ID, numero: siguienteNumero, cliente_id: clienteId,
+        cliente_nombre: clienteNombre, cliente_nit: clienteNit, usuario_id: usuarioActual.id,
+        subtotal, descuento, iva, total, estado: 'emitida'
+      }).select().single();
+      if (e1) throw new Error(e1.message);
+
+      const items = itemsFactura.map(i => ({
+        factura_id: factura.id, descripcion: i.descripcion, cantidad: i.cantidad,
+        precio_unitario: i.precio_unitario, subtotal: i.cantidad * i.precio_unitario
+      }));
+      const { error: e2 } = await sb.from('factura_items').insert(items);
+      if (e2) throw new Error(e2.message);
+
+      cerrarModalNueva();
+      await cargarFacturas();
+      await verFactura(factura.id);
+    } catch (err){
+      formError.textContent = `No se pudo emitir: ${err.message}`;
+      formError.style.display = 'block';
+    }
+    btn.disabled = false; btn.textContent = 'Emitir factura';
+  }
+
+  async function verFactura(facturaId){
+    const factura = facturas.find(f => f.id === facturaId) || (await sb.from('facturas').select('*').eq('id', facturaId).single()).data;
+    const { data: items } = await sb.from('factura_items').select('*').eq('factura_id', facturaId);
+    const datosEmpresa = configEmpresa.configuracion_extra?.datos_empresa || {};
+    const logo = configEmpresa.configuracion_extra?.logo_base64;
+
+    document.getElementById('fc-verContenido').innerHTML = `
+      ${logo ? `<img src="${logo}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;margin-bottom:6px">` : ''}
+      <h3 style="font-family:'Space Grotesk',sans-serif;font-size:15px;margin-bottom:2px">${usuarioActual.empresas.nombre}</h3>
+      ${datosEmpresa.nit ? `<div>NIT: ${datosEmpresa.nit}</div>` : ''}
+      ${datosEmpresa.direccion ? `<div>${datosEmpresa.direccion}</div>` : ''}
+      <div style="font-weight:700; margin:8px 0 4px">FACTURA N° ${String(factura.numero).padStart(4,'0')}</div>
+      <div>Fecha: ${new Date(factura.created_at).toLocaleDateString('es-BO',{day:'2-digit',month:'2-digit',year:'numeric'})}</div>
+      <div>Cliente: ${factura.cliente_nombre || 'Sin registrar'}</div>
+      ${factura.cliente_nit ? `<div>NIT/CI: ${factura.cliente_nit}</div>` : ''}
+      ${factura.estado==='anulada' ? '<div style="color:#b00;font-weight:700;margin-top:6px">*** FACTURA ANULADA ***</div>' : ''}
+      <div style="border-top:1px dashed #999; margin:10px 0"></div>
+      <table style="width:100%;font-size:11px"><thead><tr><th style="text-align:left">Descripción</th><th style="text-align:center">Cant.</th><th style="text-align:right">Subt.</th></tr></thead>
+        <tbody>${(items||[]).map(i=>`<tr><td>${i.descripcion}</td><td style="text-align:center">${i.cantidad}</td><td style="text-align:right">${Number(i.subtotal).toFixed(2)}</td></tr>`).join('')}</tbody></table>
+      <div style="border-top:1px dashed #999; margin:10px 0"></div>
+      <div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>Bs ${Number(factura.subtotal).toFixed(2)}</span></div>
+      <div style="display:flex;justify-content:space-between"><span>Descuento</span><span>− Bs ${Number(factura.descuento).toFixed(2)}</span></div>
+      <div style="display:flex;justify-content:space-between"><span>IVA</span><span>+ Bs ${Number(factura.iva).toFixed(2)}</span></div>
+      <div style="font-weight:700;font-size:14px;text-align:right;margin-top:6px">TOTAL: Bs ${Number(factura.total).toFixed(2)}</div>
+      <div style="border-top:1px dashed #999; margin:10px 0"></div>
+      <div style="font-size:9px; color:#666; text-align:center">Documento interno de control. No tiene validez fiscal ante el SIN.</div>
+    `;
+    document.getElementById('fc-modalVer').style.display = 'flex';
+  }
+  function cerrarModalVer(){ document.getElementById('fc-modalVer').style.display = 'none'; }
+
+  async function anularFactura(facturaId){
+    if (!confirm('¿Anular esta factura?')) return;
+    const { error } = await sb.from('facturas').update({ estado: 'anulada' }).eq('id', facturaId);
+    if (error){ alert(error.message); return; }
+    await cargarFacturas();
+  }
+
+  return { mostrar, cerrarModalNueva, agregarItemProducto, quitarItem, guardarFactura, verFactura, cerrarModalVer, anularFactura };
 })();
 
 
