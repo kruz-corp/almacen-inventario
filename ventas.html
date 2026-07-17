@@ -114,6 +114,47 @@
   .form-error{background:rgba(217,99,74,0.1); border:1px solid var(--warn); color:var(--warn); padding:10px 12px; border-radius:4px; font-size:13px; margin:14px 0;}
   .btn-primary{background:var(--blue); color:#101215; border:none; padding:12px; border-radius:4px; font-weight:700; font-size:14px; cursor:pointer; width:100%;}
   .btn-primary:hover{background:#7ba1f2;}
+
+  .filtro-fechas{display:flex; gap:8px; margin-bottom:14px;}
+  .btn-filtro{
+    background:var(--bg); border:1px solid var(--line); color:var(--text-dim);
+    padding:7px 14px; border-radius:20px; font-size:12px; cursor:pointer;
+  }
+  .btn-filtro:hover{color:var(--text); border-color:var(--blue-dim);}
+  .btn-filtro.activo{background:var(--blue-dim); border-color:var(--blue); color:var(--blue);}
+
+  .reportes-grid{display:grid; grid-template-columns:1fr 1fr; gap:24px;}
+  @media (max-width: 600px){ .reportes-grid{grid-template-columns:1fr;} }
+  .reporte-subtitulo{font-size:12px; color:var(--text-dim); text-transform:uppercase; margin-bottom:8px;}
+
+  .fila-venta{cursor:pointer;}
+  .fila-venta:hover{background:var(--bg-panel-hover);}
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.65);
+    display:flex; align-items:center; justify-content:center; z-index:200; padding:20px;
+  }
+  .modal-recibo{
+    background:#fff; color:#111; border-radius:6px; width:100%; max-width:340px;
+    max-height:90vh; overflow-y:auto; padding:0;
+  }
+  .recibo-acciones{
+    display:flex; justify-content:space-between; padding:14px; background:var(--bg-panel);
+    border-radius:6px 6px 0 0;
+  }
+  #reciboContenido{padding:20px; font-family:'IBM Plex Mono', monospace; font-size:12px; line-height:1.6;}
+  #reciboContenido h3{font-family:'Space Grotesk', sans-serif; font-size:15px; margin-bottom:4px;}
+  #reciboContenido .linea{border-top:1px dashed #999; margin:10px 0;}
+  #reciboContenido table{width:100%; font-size:11px;}
+  #reciboContenido th, #reciboContenido td{padding:3px 0; border:none;}
+  #reciboContenido .total-recibo{font-weight:700; font-size:14px; text-align:right; margin-top:8px;}
+
+  @media print{
+    body *{visibility:hidden;}
+    #reciboContenido, #reciboContenido *{visibility:visible;}
+    #reciboContenido{position:absolute; top:0; left:0; width:100%;}
+    .no-print{display:none !important;}
+  }
 </style>
 </head>
 <body>
@@ -165,12 +206,37 @@
     </div>
 
     <div class="panel" style="margin-top:20px">
-      <h2>Ventas de hoy</h2>
+      <h2>Historial de ventas</h2>
+      <div class="filtro-fechas">
+        <button class="btn-filtro activo" data-rango="hoy">Hoy</button>
+        <button class="btn-filtro" data-rango="semana">Esta semana</button>
+        <button class="btn-filtro" data-rango="mes">Este mes</button>
+      </div>
       <div class="stats" id="statsHoy"></div>
       <table>
-        <thead><tr><th>Hora</th><th>Cliente</th><th style="text-align:right">Total</th><th>Estado</th><th></th></tr></thead>
+        <thead><tr><th>Fecha</th><th>Cliente</th><th style="text-align:right">Total</th><th>Estado</th><th></th></tr></thead>
         <tbody id="historialBody"><tr><td colspan="5" class="vacio">Cargando…</td></tr></tbody>
       </table>
+    </div>
+
+    <div class="panel" style="margin-top:20px">
+      <h2>Reportes del período seleccionado</h2>
+      <div class="reportes-grid">
+        <div>
+          <div class="reporte-subtitulo">Productos más vendidos</div>
+          <table>
+            <thead><tr><th>Producto</th><th style="text-align:right">Cant.</th><th style="text-align:right">Total</th></tr></thead>
+            <tbody id="reporteProductosBody"><tr><td colspan="3" class="vacio">—</td></tr></tbody>
+          </table>
+        </div>
+        <div>
+          <div class="reporte-subtitulo">Ventas por método de pago</div>
+          <table>
+            <thead><tr><th>Método</th><th style="text-align:right">Ventas</th><th style="text-align:right">Total</th></tr></thead>
+            <tbody id="reporteMetodosBody"><tr><td colspan="3" class="vacio">—</td></tr></tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -206,6 +272,16 @@
     <button id="btnCobrar" class="btn-cobrar" disabled>Cobrar</button>
   </div>
 </main>
+
+<div id="reciboOverlay" class="modal-overlay" style="display:none">
+  <div class="modal-recibo">
+    <div class="recibo-acciones no-print">
+      <button id="btnCerrarRecibo" class="btn-logout">Cerrar</button>
+      <button id="btnImprimirRecibo" class="btn-primary" style="width:auto; padding:8px 18px">🖨 Imprimir</button>
+    </div>
+    <div id="reciboContenido"></div>
+  </div>
+</div>
 
 </div>
 
@@ -268,7 +344,7 @@
     document.getElementById('btnCobrar').disabled = !permisosActuales.puede_editar;
 
     await cargarProductos();
-    await cargarHistorialHoy();
+    await cargarHistorial('hoy');
   }
 
   document.getElementById('formLogin').addEventListener('submit', async (e) => {
@@ -451,12 +527,13 @@
         producto.stock_actual = nuevoStock;
       }
 
-      // 4. Limpiar carrito y refrescar
+      // 4. Limpiar carrito, refrescar y mostrar el recibo
       carrito = [];
       document.getElementById('clienteNombre').value = '';
       renderCarrito();
       renderListaProductos(productos);
-      await cargarHistorialHoy();
+      await cargarHistorial(rangoActivo);
+      await mostrarRecibo(venta.id);
 
     } catch (err){
       cobroError.textContent = `No se pudo completar la venta: ${err.message}`;
@@ -467,16 +544,39 @@
     btn.textContent = 'Cobrar';
   });
 
-  // ── Historial de hoy ────────────────────────────────────────────
-  async function cargarHistorialHoy(){
-    const inicioHoy = new Date();
-    inicioHoy.setHours(0, 0, 0, 0);
+  // ── Historial + reportes por rango de fechas ─────────────────────
+  let rangoActivo = 'hoy';
+
+  function calcularInicioRango(rango){
+    const inicio = new Date();
+    inicio.setHours(0, 0, 0, 0);
+    if (rango === 'semana'){
+      const diaSemana = inicio.getDay(); // 0=domingo
+      const diffLunes = diaSemana === 0 ? 6 : diaSemana - 1;
+      inicio.setDate(inicio.getDate() - diffLunes);
+    } else if (rango === 'mes'){
+      inicio.setDate(1);
+    }
+    return inicio;
+  }
+
+  document.querySelectorAll('.btn-filtro').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-filtro').forEach(b => b.classList.remove('activo'));
+      btn.classList.add('activo');
+      rangoActivo = btn.dataset.rango;
+      cargarHistorial(rangoActivo);
+    });
+  });
+
+  async function cargarHistorial(rango){
+    const inicio = calcularInicioRango(rango);
 
     const { data, error } = await sb
       .from('ventas')
       .select('*')
       .eq('empresa_id', EMPRESA_ID)
-      .gte('created_at', inicioHoy.toISOString())
+      .gte('created_at', inicio.toISOString())
       .order('created_at', { ascending: false });
 
     const tbody = document.getElementById('historialBody');
@@ -486,27 +586,135 @@
     }
 
     if (!data || data.length === 0){
-      tbody.innerHTML = '<tr><td colspan="5" class="vacio">Todavía no hay ventas hoy.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="vacio">No hay ventas en este período.</td></tr>';
     } else {
       tbody.innerHTML = data.map(v => `
-        <tr>
-          <td>${new Date(v.created_at).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}</td>
+        <tr class="fila-venta" onclick="mostrarRecibo('${v.id}')">
+          <td>${new Date(v.created_at).toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit' })} ${new Date(v.created_at).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}</td>
           <td>${v.cliente_nombre || '—'}</td>
           <td style="text-align:right">Bs ${Number(v.total).toFixed(2)}</td>
           <td><span class="estado-badge ${v.estado}">${v.estado}</span></td>
           <td>${(v.estado === 'completada' && permisosActuales.puede_eliminar)
-            ? `<button class="btn-anular" onclick="anularVenta('${v.id}')">Anular</button>` : ''}</td>
+            ? `<button class="btn-anular" onclick="event.stopPropagation(); anularVenta('${v.id}')">Anular</button>` : ''}</td>
         </tr>
       `).join('');
     }
 
     const ventasValidas = (data || []).filter(v => v.estado === 'completada');
-    const totalHoy = ventasValidas.reduce((acc, v) => acc + Number(v.total), 0);
+    const totalPeriodo = ventasValidas.reduce((acc, v) => acc + Number(v.total), 0);
     document.getElementById('statsHoy').innerHTML = `
-      <div class="stat"><div class="num">${ventasValidas.length}</div><div class="label">ventas hoy</div></div>
-      <div class="stat"><div class="num">Bs ${totalHoy.toLocaleString('es-BO', { maximumFractionDigits: 0 })}</div><div class="label">total vendido</div></div>
+      <div class="stat"><div class="num">${ventasValidas.length}</div><div class="label">ventas</div></div>
+      <div class="stat"><div class="num">Bs ${totalPeriodo.toLocaleString('es-BO', { maximumFractionDigits: 0 })}</div><div class="label">total vendido</div></div>
     `;
+
+    await renderReportes(ventasValidas);
   }
+
+  async function renderReportes(ventasValidas){
+    const bodyProductos = document.getElementById('reporteProductosBody');
+    const bodyMetodos = document.getElementById('reporteMetodosBody');
+
+    if (ventasValidas.length === 0){
+      bodyProductos.innerHTML = '<tr><td colspan="3" class="vacio">Sin datos en este período.</td></tr>';
+      bodyMetodos.innerHTML = '<tr><td colspan="3" class="vacio">Sin datos en este período.</td></tr>';
+      return;
+    }
+
+    // ── Reporte: ventas por método de pago (no necesita más consultas) ──
+    const porMetodo = {};
+    ventasValidas.forEach(v => {
+      const m = v.metodo_pago || 'efectivo';
+      if (!porMetodo[m]) porMetodo[m] = { cantidad: 0, total: 0 };
+      porMetodo[m].cantidad += 1;
+      porMetodo[m].total += Number(v.total);
+    });
+    bodyMetodos.innerHTML = Object.entries(porMetodo)
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([metodo, d]) => `
+        <tr>
+          <td style="text-transform:capitalize">${metodo}</td>
+          <td style="text-align:right">${d.cantidad}</td>
+          <td style="text-align:right">Bs ${d.total.toFixed(2)}</td>
+        </tr>
+      `).join('');
+
+    // ── Reporte: productos más vendidos (requiere traer los items) ──
+    const idsVentas = ventasValidas.map(v => v.id);
+    const { data: items, error } = await sb
+      .from('venta_items')
+      .select('producto_nombre, cantidad, subtotal')
+      .in('venta_id', idsVentas);
+
+    if (error || !items){
+      bodyProductos.innerHTML = `<tr><td colspan="3" class="vacio">Error al calcular: ${error?.message || ''}</td></tr>`;
+      return;
+    }
+
+    const porProducto = {};
+    items.forEach(i => {
+      if (!porProducto[i.producto_nombre]) porProducto[i.producto_nombre] = { cantidad: 0, total: 0 };
+      porProducto[i.producto_nombre].cantidad += Number(i.cantidad);
+      porProducto[i.producto_nombre].total += Number(i.subtotal);
+    });
+
+    const top5 = Object.entries(porProducto)
+      .sort((a, b) => b[1].cantidad - a[1].cantidad)
+      .slice(0, 5);
+
+    bodyProductos.innerHTML = top5.map(([nombre, d]) => `
+      <tr>
+        <td>${nombre}</td>
+        <td style="text-align:right">${d.cantidad}</td>
+        <td style="text-align:right">Bs ${d.total.toFixed(2)}</td>
+      </tr>
+    `).join('');
+  }
+
+  // ── Recibo imprimible ─────────────────────────────────────────────
+  async function mostrarRecibo(ventaId){
+    const { data: venta, error: errVenta } = await sb
+      .from('ventas').select('*').eq('id', ventaId).single();
+    if (errVenta || !venta) return;
+
+    const { data: items, error: errItems } = await sb
+      .from('venta_items').select('*').eq('venta_id', ventaId);
+    if (errItems) return;
+
+    const fecha = new Date(venta.created_at).toLocaleString('es-BO', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+
+    document.getElementById('reciboContenido').innerHTML = `
+      <h3>${usuarioActual.empresas.nombre}</h3>
+      <div>${fecha}</div>
+      <div>Atendido por: ${usuarioActual.nombre_completo}</div>
+      ${venta.cliente_nombre ? `<div>Cliente: ${venta.cliente_nombre}</div>` : ''}
+      ${venta.estado === 'anulada' ? '<div style="color:#b00; font-weight:700; margin-top:6px">*** VENTA ANULADA ***</div>' : ''}
+      <div class="linea"></div>
+      <table>
+        <thead><tr><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">Subt.</th></tr></thead>
+        <tbody>
+          ${items.map(i => `
+            <tr>
+              <td>${i.producto_nombre}</td>
+              <td style="text-align:center">${i.cantidad}</td>
+              <td style="text-align:right">${Number(i.subtotal).toFixed(2)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div class="linea"></div>
+      <div>Método de pago: ${venta.metodo_pago}</div>
+      <div class="total-recibo">TOTAL: Bs ${Number(venta.total).toFixed(2)}</div>
+    `;
+
+    document.getElementById('reciboOverlay').style.display = 'flex';
+  }
+
+  document.getElementById('btnCerrarRecibo').addEventListener('click', () => {
+    document.getElementById('reciboOverlay').style.display = 'none';
+  });
+  document.getElementById('btnImprimirRecibo').addEventListener('click', () => window.print());
 
   async function anularVenta(ventaId){
     const confirmado = confirm('¿Anular esta venta? El stock de los productos se va a devolver al inventario.');
@@ -549,7 +757,7 @@
     }
 
     await cargarProductos();
-    await cargarHistorialHoy();
+    await cargarHistorial(rangoActivo);
   }
 
   iniciarSesionSiExiste();
