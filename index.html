@@ -170,6 +170,7 @@
     <section id="view-clientes" class="view"></section>
     <section id="view-proveedores" class="view"></section>
     <section id="view-facturacion" class="view"></section>
+    <section id="view-reportes" class="view"></section>
     <section id="view-config" class="view"></section>
   </main>
 </div>
@@ -194,7 +195,8 @@ const DEFINICION_MODULOS = [
   { clave: 'finanzas',   titulo: 'Finanzas', icono: '💰' },
   { clave: 'clientes',   titulo: 'Clientes', icono: '👥' },
   { clave: 'proveedores', titulo: 'Proveedores', icono: '🚚' },
-  { clave: 'facturacion', titulo: 'Facturación', icono: '📄' }
+  { clave: 'facturacion', titulo: 'Facturación', icono: '📄' },
+  { clave: 'reportes',   titulo: 'Reportes', icono: '📊' }
 ];
 
 function hexToRgb(hex){
@@ -325,6 +327,7 @@ function irA(clave){
   else if (clave === 'clientes') ModuloClientes.mostrar();
   else if (clave === 'proveedores') ModuloProveedores.mostrar();
   else if (clave === 'facturacion') ModuloFacturacion.mostrar();
+  else if (clave === 'reportes') ModuloReportes.mostrar();
   else if (clave === 'config') ModuloConfig.mostrar();
 }
 
@@ -2187,6 +2190,217 @@ const ModuloFacturacion = (function(){
   }
 
   return { mostrar, cerrarModalNueva, agregarItemProducto, quitarItem, guardarFactura, verFactura, cerrarModalVer, anularFactura };
+})();
+
+
+const ModuloReportes = (function(){
+  let cargado = false;
+
+  async function mostrar(){
+    const el = document.getElementById('view-reportes');
+    if (!cargado){
+      el.innerHTML = plantilla();
+      bindEventos();
+      cargado = true;
+      aplicarRangoRapido('mes');
+    }
+  }
+
+  function plantilla(){
+    const hoy = new Date().toISOString().slice(0,10);
+    const inicioMes = new Date(); inicioMes.setDate(1);
+    return `
+      <h1>Reportes</h1>
+      <div class="toolbar" style="align-items:flex-end">
+        <button class="btn-icono" style="width:auto;padding:7px 14px;border-radius:20px" onclick="ModuloReportes.aplicarRangoRapido('hoy')">Hoy</button>
+        <button class="btn-icono" style="width:auto;padding:7px 14px;border-radius:20px" onclick="ModuloReportes.aplicarRangoRapido('semana')">Esta semana</button>
+        <button class="btn-icono" style="width:auto;padding:7px 14px;border-radius:20px" onclick="ModuloReportes.aplicarRangoRapido('mes')">Este mes</button>
+        <div class="form-row" style="margin:0"><label>Desde</label><input type="date" id="rp-fechaDesde" value="${inicioMes.toISOString().slice(0,10)}"></div>
+        <div class="form-row" style="margin:0"><label>Hasta</label><input type="date" id="rp-fechaHasta" value="${hoy}"></div>
+        <button id="rp-btnAplicar" class="btn-secundario">Aplicar</button>
+        <div style="flex:1"></div>
+        <button id="rp-btnExportar" class="btn-primary">⭳ Exportar Excel</button>
+      </div>
+
+      <div class="stats" id="rp-statsFinancieras"></div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+        <div class="panel">
+          <h2>Ventas por vendedor</h2>
+          <table><thead><tr><th>Vendedor</th><th style="text-align:right">Ventas</th><th style="text-align:right">Total</th></tr></thead><tbody id="rp-porVendedor"></tbody></table>
+        </div>
+        <div class="panel">
+          <h2>Ventas por método de pago</h2>
+          <table><thead><tr><th>Método</th><th style="text-align:right">Ventas</th><th style="text-align:right">Total</th></tr></thead><tbody id="rp-porMetodo"></tbody></table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Top 10 productos más vendidos</h2>
+        <table><thead><tr><th>Producto</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Total</th></tr></thead><tbody id="rp-topProductos"></tbody></table>
+      </div>
+
+      <div class="panel">
+        <h2>Gastos del período por categoría</h2>
+        <table><thead><tr><th>Categoría</th><th style="text-align:right">Total</th></tr></thead><tbody id="rp-gastosCategoria"></tbody></table>
+      </div>
+
+      <div class="panel">
+        <h2>Cuentas por cobrar (crédito)</h2>
+        <div style="font-size:12px; color:var(--text-dim); margin-bottom:10px">Saldo pendiente total de todos los clientes, a la fecha de hoy (no depende del rango de arriba).</div>
+        <div class="stats" id="rp-statsCredito"></div>
+      </div>
+    `;
+  }
+
+  function bindEventos(){
+    document.getElementById('rp-btnAplicar').addEventListener('click', () => cargarTodo());
+    document.getElementById('rp-btnExportar').addEventListener('click', exportarExcel);
+  }
+
+  function aplicarRangoRapido(rango){
+    const hoy = new Date();
+    let desde = new Date();
+    if (rango === 'hoy'){ /* desde = hoy */ }
+    else if (rango === 'semana'){ const d = hoy.getDay(); desde.setDate(hoy.getDate() - (d===0?6:d-1)); }
+    else if (rango === 'mes'){ desde.setDate(1); }
+    document.getElementById('rp-fechaDesde').value = desde.toISOString().slice(0,10);
+    document.getElementById('rp-fechaHasta').value = hoy.toISOString().slice(0,10);
+    cargarTodo();
+  }
+
+  let ultimosDatos = null;
+
+  async function cargarTodo(){
+    const desde = document.getElementById('rp-fechaDesde').value;
+    const hasta = document.getElementById('rp-fechaHasta').value;
+    const desdeISO = new Date(desde + 'T00:00:00').toISOString();
+    const hastaISO = new Date(hasta + 'T23:59:59').toISOString();
+
+    const { data: ventas } = await sb.from('ventas').select('*').eq('empresa_id', EMPRESA_ID)
+      .gte('created_at', desdeISO).lte('created_at', hastaISO);
+    const ventasValidas = (ventas||[]).filter(v => v.estado === 'completada');
+
+    const idsVentas = ventasValidas.map(v => v.id);
+    let items = [];
+    if (idsVentas.length > 0){
+      const { data } = await sb.from('venta_items').select('*').in('venta_id', idsVentas);
+      items = data || [];
+    }
+
+    const { data: productos } = await sb.from('catalogo_productos').select('id, nombre, precio_costo').eq('empresa_id', EMPRESA_ID);
+    const costoPorProducto = {};
+    (productos||[]).forEach(p => { costoPorProducto[p.id] = Number(p.precio_costo) || 0; });
+
+    const { data: usuarios } = await sb.from('usuarios').select('id, nombre_completo').eq('empresa_id', EMPRESA_ID);
+    const nombrePorUsuario = {};
+    (usuarios||[]).forEach(u => { nombrePorUsuario[u.id] = u.nombre_completo; });
+
+    const { data: gastos } = await sb.from('gastos').select('*').eq('empresa_id', EMPRESA_ID)
+      .gte('fecha', desde).lte('fecha', hasta);
+
+    // ── KPIs financieros ──
+    const totalVentas = ventasValidas.reduce((a,v)=>a+Number(v.total),0);
+    const costoVenta = items.reduce((a,i) => a + (Number(i.cantidad) * (costoPorProducto[i.producto_id] || 0)), 0);
+    const utilidadBruta = totalVentas - costoVenta;
+    const totalGastos = (gastos||[]).reduce((a,g)=>a+Number(g.monto),0);
+    const utilidadNeta = utilidadBruta - totalGastos;
+
+    document.getElementById('rp-statsFinancieras').innerHTML = `
+      <div class="stat"><div class="num">Bs ${totalVentas.toLocaleString('es-BO',{maximumFractionDigits:0})}</div><div class="label">ventas totales</div></div>
+      <div class="stat"><div class="num">Bs ${costoVenta.toLocaleString('es-BO',{maximumFractionDigits:0})}</div><div class="label">costo de venta</div></div>
+      <div class="stat"><div class="num" style="color:var(--ok)">Bs ${utilidadBruta.toLocaleString('es-BO',{maximumFractionDigits:0})}</div><div class="label">utilidad bruta</div></div>
+      <div class="stat"><div class="num">Bs ${totalGastos.toLocaleString('es-BO',{maximumFractionDigits:0})}</div><div class="label">gastos</div></div>
+      <div class="stat"><div class="num" style="color:${utilidadNeta>=0?'var(--ok)':'var(--warn)'}">Bs ${utilidadNeta.toLocaleString('es-BO',{maximumFractionDigits:0})}</div><div class="label">utilidad neta</div></div>
+    `;
+
+    // ── Ventas por vendedor ──
+    const porVendedor = {};
+    ventasValidas.forEach(v => {
+      const nombre = nombrePorUsuario[v.usuario_id] || 'Sin asignar';
+      if (!porVendedor[nombre]) porVendedor[nombre] = { cantidad:0, total:0 };
+      porVendedor[nombre].cantidad++; porVendedor[nombre].total += Number(v.total);
+    });
+    document.getElementById('rp-porVendedor').innerHTML = Object.entries(porVendedor).sort((a,b)=>b[1].total-a[1].total)
+      .map(([n,d]) => `<tr><td>${n}</td><td style="text-align:right">${d.cantidad}</td><td style="text-align:right">Bs ${d.total.toFixed(2)}</td></tr>`).join('')
+      || '<tr><td colspan="3" class="estado-vacio">Sin ventas en este período.</td></tr>';
+
+    // ── Por método de pago ──
+    const porMetodo = {};
+    ventasValidas.forEach(v => {
+      const m = v.metodo_pago || 'efectivo';
+      if (!porMetodo[m]) porMetodo[m] = { cantidad:0, total:0 };
+      porMetodo[m].cantidad++; porMetodo[m].total += Number(v.total);
+    });
+    document.getElementById('rp-porMetodo').innerHTML = Object.entries(porMetodo).sort((a,b)=>b[1].total-a[1].total)
+      .map(([m,d]) => `<tr><td style="text-transform:capitalize">${m}</td><td style="text-align:right">${d.cantidad}</td><td style="text-align:right">Bs ${d.total.toFixed(2)}</td></tr>`).join('')
+      || '<tr><td colspan="3" class="estado-vacio">Sin ventas en este período.</td></tr>';
+
+    // ── Top productos ──
+    const porProducto = {};
+    items.forEach(i => {
+      if (!porProducto[i.producto_nombre]) porProducto[i.producto_nombre] = { cantidad:0, total:0 };
+      porProducto[i.producto_nombre].cantidad += Number(i.cantidad);
+      porProducto[i.producto_nombre].total += Number(i.subtotal);
+    });
+    document.getElementById('rp-topProductos').innerHTML = Object.entries(porProducto).sort((a,b)=>b[1].cantidad-a[1].cantidad).slice(0,10)
+      .map(([n,d]) => `<tr><td>${n}</td><td style="text-align:right">${d.cantidad}</td><td style="text-align:right">Bs ${d.total.toFixed(2)}</td></tr>`).join('')
+      || '<tr><td colspan="3" class="estado-vacio">Sin ventas en este período.</td></tr>';
+
+    // ── Gastos por categoría ──
+    const porCategoria = {};
+    (gastos||[]).forEach(g => { const c = g.categoria || 'Sin categoría'; porCategoria[c] = (porCategoria[c]||0) + Number(g.monto); });
+    document.getElementById('rp-gastosCategoria').innerHTML = Object.entries(porCategoria).sort((a,b)=>b[1]-a[1])
+      .map(([c,t]) => `<tr><td>${c}</td><td style="text-align:right">Bs ${t.toFixed(2)}</td></tr>`).join('')
+      || '<tr><td colspan="2" class="estado-vacio">Sin gastos en este período.</td></tr>';
+
+    // ── Cuentas por cobrar (no depende del rango) ──
+    const { data: clientesActivos } = await sb.from('clientes').select('*').eq('empresa_id', EMPRESA_ID).eq('activo', true);
+    const { data: ventasCreditoTodas } = await sb.from('ventas').select('cliente_id, total').eq('empresa_id', EMPRESA_ID).eq('metodo_pago','credito').eq('estado','completada');
+    const { data: pagosTodos } = await sb.from('pagos_credito').select('cliente_id, monto').eq('empresa_id', EMPRESA_ID);
+    let totalPorCobrar = 0, clientesConDeuda = 0;
+    (clientesActivos||[]).forEach(c => {
+      const deuda = (ventasCreditoTodas||[]).filter(v=>v.cliente_id===c.id).reduce((a,v)=>a+Number(v.total),0);
+      const pagado = (pagosTodos||[]).filter(p=>p.cliente_id===c.id).reduce((a,p)=>a+Number(p.monto),0);
+      const saldo = deuda - pagado;
+      if (saldo > 0){ totalPorCobrar += saldo; clientesConDeuda++; }
+    });
+    document.getElementById('rp-statsCredito').innerHTML = `
+      <div class="stat"><div class="num">Bs ${totalPorCobrar.toLocaleString('es-BO',{maximumFractionDigits:0})}</div><div class="label">total pendiente de cobro</div></div>
+      <div class="stat"><div class="num">${clientesConDeuda}</div><div class="label">clientes con saldo</div></div>`;
+
+    ultimosDatos = { desde, hasta, ventasValidas, items, porVendedor, porMetodo, porProducto, gastos: gastos||[], totalVentas, costoVenta, utilidadBruta, totalGastos, utilidadNeta };
+  }
+
+  function exportarExcel(){
+    if (!ultimosDatos) return;
+    const libro = XLSX.utils.book_new();
+
+    const resumen = [
+      { Concepto: 'Ventas totales', Monto: ultimosDatos.totalVentas },
+      { Concepto: 'Costo de venta', Monto: ultimosDatos.costoVenta },
+      { Concepto: 'Utilidad bruta', Monto: ultimosDatos.utilidadBruta },
+      { Concepto: 'Gastos', Monto: ultimosDatos.totalGastos },
+      { Concepto: 'Utilidad neta', Monto: ultimosDatos.utilidadNeta }
+    ];
+    XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(resumen), 'Resumen');
+
+    const ventasFilas = ultimosDatos.ventasValidas.map(v => ({
+      Fecha: new Date(v.created_at).toLocaleDateString('es-BO'), Cliente: v.cliente_nombre || '—',
+      Método: v.metodo_pago, Total: v.total
+    }));
+    XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(ventasFilas), 'Ventas');
+
+    const productosFilas = Object.entries(ultimosDatos.porProducto).map(([n,d]) => ({ Producto: n, Cantidad: d.cantidad, Total: d.total }));
+    XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(productosFilas), 'Productos');
+
+    const gastosFilas = ultimosDatos.gastos.map(g => ({ Fecha: g.fecha, Concepto: g.concepto, Categoría: g.categoria||'', Monto: g.monto }));
+    XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(gastosFilas), 'Gastos');
+
+    XLSX.writeFile(libro, `reporte_${ultimosDatos.desde}_a_${ultimosDatos.hasta}.xlsx`);
+  }
+
+  return { mostrar, aplicarRangoRapido };
 })();
 
 
