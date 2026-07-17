@@ -45,6 +45,16 @@
   .btn-primary:hover{background:#b58bea;}
   .btn-secundario{background:transparent; color:var(--text-dim); border:1px solid var(--line); padding:10px 18px; border-radius:4px; font-size:14px; cursor:pointer;}
   .btn-secundario:hover{color:var(--text); border-color:var(--text-dim);}
+  .btn-editar-fila{
+    background:var(--bg); border:1px solid var(--line); color:var(--text);
+    width:26px; height:26px; border-radius:4px; cursor:pointer; font-size:13px;
+  }
+  .btn-editar-fila:hover{border-color:var(--violet-dim); color:var(--violet);}
+  .btn-danger{
+    background:transparent; color:var(--warn); border:1px solid var(--warn);
+    padding:10px 18px; border-radius:4px; font-size:14px; cursor:pointer;
+  }
+  .btn-danger:hover{background:rgba(217,99,74,0.1);}
 
   table{width:100%; border-collapse:collapse; background:var(--bg-panel); border:1px solid var(--line); border-radius:6px; overflow:hidden;}
   thead th{text-align:left; font-size:11px; text-transform:uppercase; color:var(--text-dim); padding:12px 16px; border-bottom:1px solid var(--line); font-weight:500;}
@@ -69,7 +79,7 @@
   .form-row label{font-size:12px; color:var(--text-dim); text-transform:uppercase;}
   .form-row-split{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
   .form-error{background:rgba(217,99,74,0.1); border:1px solid var(--warn); color:var(--warn); padding:10px 12px; border-radius:4px; font-size:13px; margin-bottom:14px;}
-  .form-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:18px;}
+  .form-actions{display:flex; align-items:center; gap:10px; margin-top:18px;}
 
   .resumen-cliente{background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:14px; margin-bottom:16px; font-size:13px;}
   .resumen-cliente .fila{display:flex; justify-content:space-between; padding:4px 0;}
@@ -136,9 +146,9 @@
 
   <table>
     <thead>
-      <tr><th>Cliente</th><th>Teléfono</th><th style="text-align:right">Límite</th><th style="text-align:right">Saldo</th><th style="text-align:right">Disponible</th></tr>
+      <tr><th>Cliente</th><th>Teléfono</th><th style="text-align:right">Límite</th><th style="text-align:right">Saldo</th><th style="text-align:right">Disponible</th><th></th></tr>
     </thead>
-    <tbody id="clientesBody"><tr><td colspan="5" class="estado">Cargando…</td></tr></tbody>
+    <tbody id="clientesBody"><tr><td colspan="6" class="estado">Cargando…</td></tr></tbody>
   </table>
 </main>
 
@@ -169,6 +179,8 @@
       </div>
       <div id="clienteError" class="form-error" style="display:none"></div>
       <div class="form-actions">
+        <button type="button" id="btnDesactivarCliente" class="btn-danger" style="display:none" onclick="desactivarCliente()">Desactivar cliente</button>
+        <div style="flex:1"></div>
         <button type="button" class="btn-secundario" onclick="cerrarModalCliente()">Cancelar</button>
         <button type="submit" id="btnGuardarCliente" class="btn-primary">Guardar cliente</button>
       </div>
@@ -340,7 +352,7 @@
   function renderClientes(lista){
     const tbody = document.getElementById('clientesBody');
     if (lista.length === 0){
-      tbody.innerHTML = '<tr><td colspan="5" class="estado">No hay clientes con cuenta de crédito todavía.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="estado">No hay clientes con cuenta de crédito todavía.</td></tr>';
       return;
     }
     tbody.innerHTML = lista.map(c => `
@@ -350,6 +362,11 @@
         <td style="text-align:right" class="saldo">${c.limite_credito > 0 ? `Bs ${Number(c.limite_credito).toFixed(2)}` : '<span style="color:var(--text-dim)">Sin límite</span>'}</td>
         <td style="text-align:right" class="saldo ${claseSaldo(c)}">Bs ${c.saldo.toFixed(2)}</td>
         <td style="text-align:right" class="saldo ${c.disponible < 0 && c.limite_credito > 0 ? 'excedido' : 'ok'}">${c.limite_credito > 0 ? `Bs ${c.disponible.toFixed(2)}` : '—'}</td>
+        <td style="text-align:center">
+          ${permisosActuales.puede_editar
+            ? `<button class="btn-editar-fila" onclick="event.stopPropagation(); abrirModalEditarCliente('${c.id}')" title="Editar">✎</button>`
+            : ''}
+        </td>
       </tr>
     `).join('');
   }
@@ -359,13 +376,35 @@
     renderClientes(clientes.filter(c => c.nombre.toLowerCase().includes(texto)));
   });
 
-  // ── Modal nuevo cliente ───────────────────────────────────────────
+  // ── Modal nuevo / editar cliente ──────────────────────────────────
+  let clienteEditando = null; // null = modo "nuevo"; objeto = modo "editar"
+
   document.getElementById('btnNuevoCliente').addEventListener('click', () => {
+    clienteEditando = null;
     document.getElementById('formCliente').reset();
     document.getElementById('clienteError').style.display = 'none';
     document.getElementById('tituloModalCliente').textContent = 'Nuevo cliente';
+    document.getElementById('btnGuardarCliente').textContent = 'Guardar cliente';
+    document.getElementById('btnDesactivarCliente').style.display = 'none';
     document.getElementById('modalCliente').style.display = 'flex';
   });
+
+  function abrirModalEditarCliente(clienteId){
+    const cliente = clientes.find(c => c.id === clienteId);
+    if (!cliente) return;
+
+    clienteEditando = cliente;
+    document.getElementById('clienteError').style.display = 'none';
+    document.getElementById('tituloModalCliente').textContent = 'Editar cliente';
+    document.getElementById('btnGuardarCliente').textContent = 'Guardar cambios';
+    document.getElementById('btnDesactivarCliente').style.display = permisosActuales.puede_eliminar ? 'inline-block' : 'none';
+
+    document.getElementById('fClienteNombre').value = cliente.nombre || '';
+    document.getElementById('fClienteTelefono').value = cliente.telefono || '';
+    document.getElementById('fClienteLimite').value = cliente.limite_credito > 0 ? cliente.limite_credito : '';
+
+    document.getElementById('modalCliente').style.display = 'flex';
+  }
 
   function cerrarModalCliente(){ document.getElementById('modalCliente').style.display = 'none'; }
 
@@ -374,16 +413,20 @@
     const clienteError = document.getElementById('clienteError');
     clienteError.style.display = 'none';
     const btn = document.getElementById('btnGuardarCliente');
-    btn.disabled = true; btn.textContent = 'Guardando…';
+    btn.disabled = true; btn.textContent = clienteEditando ? 'Guardando…' : 'Guardando…';
 
-    const { error } = await sb.from('clientes').insert({
-      empresa_id: EMPRESA_ID,
+    const datosCliente = {
       nombre: document.getElementById('fClienteNombre').value.trim(),
       telefono: document.getElementById('fClienteTelefono').value.trim() || null,
       limite_credito: parseFloat(document.getElementById('fClienteLimite').value) || 0
-    });
+    };
 
-    btn.disabled = false; btn.textContent = 'Guardar cliente';
+    const { error } = clienteEditando
+      ? await sb.from('clientes').update(datosCliente).eq('id', clienteEditando.id)
+      : await sb.from('clientes').insert({ ...datosCliente, empresa_id: EMPRESA_ID });
+
+    btn.disabled = false;
+    btn.textContent = clienteEditando ? 'Guardar cambios' : 'Guardar cliente';
 
     if (error){
       clienteError.textContent = `No se pudo guardar: ${error.message}`;
@@ -394,6 +437,37 @@
     cerrarModalCliente();
     await cargarClientes();
   });
+
+  async function desactivarCliente(){
+    if (!clienteEditando) return;
+
+    if (clienteEditando.saldo > 0){
+      const continuar = confirm(
+        `Este cliente todavía tiene un saldo pendiente de Bs ${clienteEditando.saldo.toFixed(2)}. ` +
+        `Si lo desactivás, dejará de aparecer para nuevas ventas a crédito, pero su historial y saldo se conservan. ¿Continuar?`
+      );
+      if (!continuar) return;
+    } else {
+      const confirmado = confirm(`¿Desactivar a "${clienteEditando.nombre}"? Dejará de aparecer en las listas, pero su historial se conserva.`);
+      if (!confirmado) return;
+    }
+
+    const btn = document.getElementById('btnDesactivarCliente');
+    btn.disabled = true; btn.textContent = 'Desactivando…';
+
+    const { error } = await sb.from('clientes').update({ activo: false }).eq('id', clienteEditando.id);
+
+    btn.disabled = false; btn.textContent = 'Desactivar cliente';
+
+    if (error){
+      document.getElementById('clienteError').textContent = `No se pudo desactivar: ${error.message}`;
+      document.getElementById('clienteError').style.display = 'block';
+      return;
+    }
+
+    cerrarModalCliente();
+    await cargarClientes();
+  }
 
   // ── Modal detalle de cuenta + abonos ─────────────────────────────
   async function abrirModalDetalle(clienteId){
