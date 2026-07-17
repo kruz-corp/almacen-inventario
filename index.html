@@ -168,6 +168,7 @@
     <section id="view-credito" class="view"></section>
     <section id="view-finanzas" class="view"></section>
     <section id="view-clientes" class="view"></section>
+    <section id="view-proveedores" class="view"></section>
     <section id="view-config" class="view"></section>
   </main>
 </div>
@@ -190,7 +191,8 @@ const DEFINICION_MODULOS = [
   { clave: 'ventas',     titulo: 'Ventas · POS', icono: '🧾' },
   { clave: 'credito',    titulo: 'Crédito', icono: '💳' },
   { clave: 'finanzas',   titulo: 'Finanzas', icono: '💰' },
-  { clave: 'clientes',   titulo: 'Clientes', icono: '👥' }
+  { clave: 'clientes',   titulo: 'Clientes', icono: '👥' },
+  { clave: 'proveedores', titulo: 'Proveedores', icono: '🚚' }
 ];
 
 function hexToRgb(hex){
@@ -319,6 +321,7 @@ function irA(clave){
   else if (clave === 'credito') ModuloCredito.mostrar();
   else if (clave === 'finanzas') ModuloFinanzas.mostrar();
   else if (clave === 'clientes') ModuloClientes.mostrar();
+  else if (clave === 'proveedores') ModuloProveedores.mostrar();
   else if (clave === 'config') ModuloConfig.mostrar();
 }
 
@@ -344,6 +347,7 @@ document.getElementById('btnLogoutSinAcceso').addEventListener('click', async ()
 const ModuloInventario = (function(){
   let cargado = false;
   let productos = [];
+  let proveedoresCache = [];
 
   function permisos(){ return permisosPorModulo.inventario || { puede_editar:false, puede_eliminar:false }; }
 
@@ -382,6 +386,7 @@ const ModuloInventario = (function(){
             <div class="form-row"><label>Código</label><input type="text" id="inv-fCodigo" placeholder="FER-006"></div>
             <div class="form-row"><label>Nombre *</label><input type="text" id="inv-fNombre" required></div>
             <div class="form-row"><label>Categoría</label><input type="text" id="inv-fCategoria" list="inv-listaCategorias"><datalist id="inv-listaCategorias"></datalist></div>
+            <div class="form-row"><label>Proveedor</label><select id="inv-fProveedor"><option value="">Sin proveedor asignado</option></select></div>
             <div class="form-row-split">
               <div class="form-row"><label>Costo (Bs)</label><input type="number" step="0.01" id="inv-fCosto"></div>
               <div class="form-row"><label>Venta (Bs)</label><input type="number" step="0.01" id="inv-fVenta"></div>
@@ -424,10 +429,18 @@ const ModuloInventario = (function(){
       return;
     }
     productos = data;
+    await cargarProveedoresCache();
     poblarCategorias();
     renderStats();
     renderTabla(productos);
   }
+
+  async function cargarProveedoresCache(){
+    const { data } = await sb.from('proveedores').select('id, nombre').eq('empresa_id', EMPRESA_ID).eq('activo', true).order('nombre');
+    proveedoresCache = data || [];
+  }
+
+  function refrescarProveedores(){ cargarProveedoresCache(); }
 
   function poblarCategorias(){
     const categorias = [...new Set(productos.map(p => p.categoria).filter(Boolean))].sort();
@@ -492,6 +505,12 @@ const ModuloInventario = (function(){
 
   let productoEditando = null;
 
+  function poblarSelectProveedor(seleccionadoId){
+    const select = document.getElementById('inv-fProveedor');
+    select.innerHTML = '<option value="">Sin proveedor asignado</option>' +
+      proveedoresCache.map(p => `<option value="${p.id}" ${p.id===seleccionadoId?'selected':''}>${p.nombre}</option>`).join('');
+  }
+
   function abrirModalNuevo(){
     productoEditando = null;
     document.getElementById('inv-formProducto').reset();
@@ -500,6 +519,7 @@ const ModuloInventario = (function(){
     document.getElementById('inv-modalTitulo').textContent = 'Nuevo producto';
     document.getElementById('inv-btnGuardar').textContent = 'Guardar producto';
     document.getElementById('inv-btnEliminar').style.display = 'none';
+    poblarSelectProveedor(null);
     document.getElementById('inv-modalOverlay').style.display = 'flex';
   }
 
@@ -518,6 +538,7 @@ const ModuloInventario = (function(){
     document.getElementById('inv-fVenta').value = p.precio_venta ?? '';
     document.getElementById('inv-fStock').value = p.stock_actual ?? '';
     document.getElementById('inv-fUnidad').value = p.unidad_medida || 'unidad';
+    poblarSelectProveedor(p.proveedor_id || null);
     document.getElementById('inv-modalOverlay').style.display = 'flex';
   }
 
@@ -534,6 +555,7 @@ const ModuloInventario = (function(){
       codigo: document.getElementById('inv-fCodigo').value.trim() || null,
       nombre: document.getElementById('inv-fNombre').value.trim(),
       categoria: document.getElementById('inv-fCategoria').value.trim() || null,
+      proveedor_id: document.getElementById('inv-fProveedor').value || null,
       precio_costo: parseFloat(document.getElementById('inv-fCosto').value) || 0,
       precio_venta: parseFloat(document.getElementById('inv-fVenta').value) || 0,
       stock_actual: parseFloat(document.getElementById('inv-fStock').value) || 0,
@@ -646,7 +668,7 @@ const ModuloInventario = (function(){
     }
   }
 
-  return { mostrar, cerrarModal, abrirModalEdicion, ajustarStock, eliminarProducto };
+  return { mostrar, cerrarModal, abrirModalEdicion, ajustarStock, eliminarProducto, refrescarProveedores };
 })();
 
 
@@ -1667,6 +1689,187 @@ const ModuloClientes = (function(){
 })();
 
 
+const ModuloProveedores = (function(){
+  let cargado = false;
+  let proveedores = [];
+
+  function permisos(){ return permisosPorModulo.proveedores || { puede_editar:false, puede_eliminar:false }; }
+
+  async function mostrar(){
+    const el = document.getElementById('view-proveedores');
+    if (!cargado){
+      el.innerHTML = plantilla();
+      bindEventos();
+      cargado = true;
+      await cargarProveedores();
+    }
+  }
+
+  function plantilla(){
+    return `
+      <h1>Proveedores</h1>
+      <div class="stats" id="pv-stats"></div>
+      <div class="toolbar">
+        <input type="text" id="pv-buscador" placeholder="Buscar proveedor…">
+        <button id="pv-btnNuevo" class="btn-primary" style="${permisos().puede_editar?'':'display:none'}">+ Nuevo proveedor</button>
+      </div>
+      <table><thead><tr><th>Proveedor</th><th>Contacto</th><th>Teléfono</th><th>Categoría</th><th style="text-align:right">Productos</th><th></th></tr></thead>
+        <tbody id="pv-tablaBody"><tr><td colspan="6" class="estado-vacio">Cargando…</td></tr></tbody></table>
+
+      <div id="pv-modalOverlay" class="modal-overlay" style="display:none">
+        <div class="modal">
+          <div class="modal-header"><h2 id="pv-modalTitulo">Nuevo proveedor</h2><button class="btn-cerrar" onclick="ModuloProveedores.cerrarModal()">✕</button></div>
+          <form id="pv-formProveedor">
+            <div class="form-row"><label>Nombre / Razón social *</label><input type="text" id="pv-fNombre" required></div>
+            <div class="form-row-split">
+              <div class="form-row"><label>Persona de contacto</label><input type="text" id="pv-fContacto"></div>
+              <div class="form-row"><label>Teléfono</label><input type="text" id="pv-fTelefono"></div>
+            </div>
+            <div class="form-row-split">
+              <div class="form-row"><label>Email</label><input type="email" id="pv-fEmail"></div>
+              <div class="form-row"><label>NIT</label><input type="text" id="pv-fNit"></div>
+            </div>
+            <div class="form-row"><label>Dirección</label><input type="text" id="pv-fDireccion"></div>
+            <div class="form-row"><label>Categoría / rubro que provee</label><input type="text" id="pv-fCategoria" placeholder="Ferretería, pinturas, eléctrico…"></div>
+            <div class="form-row"><label>Notas</label><input type="text" id="pv-fNotas"></div>
+            <div id="pv-formError" class="form-error" style="display:none"></div>
+            <div class="form-actions">
+              <button type="button" id="pv-btnDesactivar" class="btn-danger" style="display:none" onclick="ModuloProveedores.desactivarProveedor()">Desactivar</button>
+              <div style="flex:1"></div>
+              <button type="button" class="btn-secundario" onclick="ModuloProveedores.cerrarModal()">Cancelar</button>
+              <button type="submit" id="pv-btnGuardar" class="btn-primary">Guardar proveedor</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+  }
+
+  function bindEventos(){
+    document.getElementById('pv-buscador').addEventListener('input', (e) => {
+      const t = e.target.value.toLowerCase();
+      renderTabla(proveedores.filter(p => p.nombre.toLowerCase().includes(t)));
+    });
+    document.getElementById('pv-btnNuevo').addEventListener('click', abrirModalNuevo);
+    document.getElementById('pv-formProveedor').addEventListener('submit', guardarProveedor);
+  }
+
+  async function cargarProveedores(){
+    const { data, error } = await sb.from('proveedores').select('*').eq('empresa_id', EMPRESA_ID).eq('activo', true).order('nombre');
+    if (error){
+      document.getElementById('pv-tablaBody').innerHTML = `<tr><td colspan="6" class="estado-vacio">Error: ${error.message}</td></tr>`;
+      return;
+    }
+    const { data: productos } = await sb.from('catalogo_productos').select('proveedor_id').eq('empresa_id', EMPRESA_ID).eq('activo', true).not('proveedor_id','is',null);
+    proveedores = data.map(p => ({
+      ...p,
+      cantidadProductos: (productos||[]).filter(prod => prod.proveedor_id === p.id).length
+    }));
+    renderStats();
+    renderTabla(proveedores);
+  }
+
+  function renderStats(){
+    document.getElementById('pv-stats').innerHTML = `
+      <div class="stat"><div class="num">${proveedores.length}</div><div class="label">proveedores registrados</div></div>
+      <div class="stat"><div class="num">${proveedores.filter(p=>p.cantidadProductos>0).length}</div><div class="label">con productos vinculados</div></div>`;
+  }
+
+  function renderTabla(lista){
+    const tbody = document.getElementById('pv-tablaBody');
+    tbody.innerHTML = lista.length === 0 ? '<tr><td colspan="6" class="estado-vacio">Sin proveedores registrados.</td></tr>' :
+      lista.map(p => `
+        <tr>
+          <td>${p.nombre}</td>
+          <td>${p.contacto || '—'}</td>
+          <td>${p.telefono || '—'}</td>
+          <td>${p.categoria ? `<span class="badge">${p.categoria}</span>` : '—'}</td>
+          <td style="text-align:right">${p.cantidadProductos}</td>
+          <td style="text-align:center">${permisos().puede_editar ? `<button class="btn-icono" onclick="ModuloProveedores.abrirModalEdicion('${p.id}')">✎</button>` : ''}</td>
+        </tr>
+      `).join('');
+  }
+
+  let proveedorEditando = null;
+
+  function abrirModalNuevo(){
+    proveedorEditando = null;
+    document.getElementById('pv-formProveedor').reset();
+    document.getElementById('pv-formError').style.display = 'none';
+    document.getElementById('pv-modalTitulo').textContent = 'Nuevo proveedor';
+    document.getElementById('pv-btnGuardar').textContent = 'Guardar proveedor';
+    document.getElementById('pv-btnDesactivar').style.display = 'none';
+    document.getElementById('pv-modalOverlay').style.display = 'flex';
+  }
+
+  function abrirModalEdicion(id){
+    const p = proveedores.find(x => x.id === id);
+    if (!p) return;
+    proveedorEditando = p;
+    document.getElementById('pv-formError').style.display = 'none';
+    document.getElementById('pv-modalTitulo').textContent = 'Editar proveedor';
+    document.getElementById('pv-btnGuardar').textContent = 'Guardar cambios';
+    document.getElementById('pv-btnDesactivar').style.display = permisos().puede_eliminar ? 'inline-block' : 'none';
+    document.getElementById('pv-fNombre').value = p.nombre || '';
+    document.getElementById('pv-fContacto').value = p.contacto || '';
+    document.getElementById('pv-fTelefono').value = p.telefono || '';
+    document.getElementById('pv-fEmail').value = p.email || '';
+    document.getElementById('pv-fNit').value = p.nit || '';
+    document.getElementById('pv-fDireccion').value = p.direccion || '';
+    document.getElementById('pv-fCategoria').value = p.categoria || '';
+    document.getElementById('pv-fNotas').value = p.notas || '';
+    document.getElementById('pv-modalOverlay').style.display = 'flex';
+  }
+
+  function cerrarModal(){ document.getElementById('pv-modalOverlay').style.display = 'none'; }
+
+  async function guardarProveedor(e){
+    e.preventDefault();
+    const formError = document.getElementById('pv-formError');
+    formError.style.display = 'none';
+    const btn = document.getElementById('pv-btnGuardar');
+    btn.disabled = true; btn.textContent = 'Guardando…';
+
+    const datos = {
+      nombre: document.getElementById('pv-fNombre').value.trim(),
+      contacto: document.getElementById('pv-fContacto').value.trim() || null,
+      telefono: document.getElementById('pv-fTelefono').value.trim() || null,
+      email: document.getElementById('pv-fEmail').value.trim() || null,
+      nit: document.getElementById('pv-fNit').value.trim() || null,
+      direccion: document.getElementById('pv-fDireccion').value.trim() || null,
+      categoria: document.getElementById('pv-fCategoria').value.trim() || null,
+      notas: document.getElementById('pv-fNotas').value.trim() || null
+    };
+
+    let error;
+    if (proveedorEditando){
+      ({ error } = await sb.from('proveedores').update(datos).eq('id', proveedorEditando.id));
+    } else {
+      ({ error } = await sb.from('proveedores').insert({ ...datos, empresa_id: EMPRESA_ID }));
+    }
+
+    btn.disabled = false; btn.textContent = proveedorEditando ? 'Guardar cambios' : 'Guardar proveedor';
+    if (error){ formError.textContent = `No se pudo guardar: ${error.message}`; formError.style.display = 'block'; return; }
+    cerrarModal(); await cargarProveedores();
+    ModuloInventario.refrescarProveedores();
+  }
+
+  async function desactivarProveedor(){
+    if (!proveedorEditando) return;
+    if (!confirm(`¿Desactivar a "${proveedorEditando.nombre}"?`)) return;
+    const { error } = await sb.from('proveedores').update({ activo: false }).eq('id', proveedorEditando.id);
+    if (error){ alert(error.message); return; }
+    cerrarModal(); await cargarProveedores();
+    ModuloInventario.refrescarProveedores();
+  }
+
+  // Usado por Inventario para poblar el select de proveedor en el modal de producto
+  function listaParaSelect(){ return proveedores; }
+
+  return { mostrar, abrirModalEdicion, cerrarModal, desactivarProveedor, listaParaSelect };
+})();
+
+
 const ModuloInicio = (function(){
   let cargado = false;
 
@@ -1728,11 +1931,15 @@ const ModuloInicio = (function(){
       : gastosHoy.map(g => `<tr><td>${g.concepto}</td><td><span class="badge">${g.categoria||'Sin categoría'}</span></td><td style="text-align:right">Bs ${Number(g.monto).toFixed(2)}</td></tr>`).join('');
 
     // Reposición: stock bajo
-    const { data: productos } = await sb.from('catalogo_productos').select('id, nombre, stock_actual, unidad_medida').eq('empresa_id', EMPRESA_ID).eq('activo', true).order('stock_actual');
+    const { data: productos } = await sb.from('catalogo_productos').select('id, nombre, stock_actual, unidad_medida, proveedor_id').eq('empresa_id', EMPRESA_ID).eq('activo', true).order('stock_actual');
+    const { data: proveedoresLista } = await sb.from('proveedores').select('id, nombre').eq('empresa_id', EMPRESA_ID);
+    const proveedorPorId = {};
+    (proveedoresLista||[]).forEach(p => { proveedorPorId[p.id] = p.nombre; });
+
     const bajoStock = (productos||[]).filter(p => p.stock_actual <= 15).slice(0, 8);
     document.getElementById('in-reposicion').innerHTML = bajoStock.length === 0
       ? '<tr><td colspan="2" class="estado-vacio">Ningún producto con stock bajo. 👍</td></tr>'
-      : bajoStock.map(p => `<tr><td>${p.nombre}</td><td style="text-align:right; color:var(--warn)">${p.stock_actual} ${p.unidad_medida}</td></tr>`).join('');
+      : bajoStock.map(p => `<tr><td>${p.nombre}${p.proveedor_id && proveedorPorId[p.proveedor_id] ? `<div style="font-size:11px;color:var(--text-dim)">Proveedor: ${proveedorPorId[p.proveedor_id]}</div>` : ''}</td><td style="text-align:right; color:var(--warn)">${p.stock_actual} ${p.unidad_medida}</td></tr>`).join('');
 
     // Sin rotación: no vendidos en los últimos 30 días
     const hace30 = new Date(); hace30.setDate(hace30.getDate() - 30);
