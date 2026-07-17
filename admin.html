@@ -231,6 +231,11 @@
         </tbody>
       </table>
 
+      <label style="display:flex; align-items:center; gap:8px; margin-top:14px; font-size:13px; cursor:pointer">
+        <input type="checkbox" id="fRolEsAdmin" style="width:16px; height:16px; cursor:pointer">
+        Este rol puede entrar a Configuración (colores, logo, datos de la empresa)
+      </label>
+
       <div id="rolError" class="form-error" style="display:none"></div>
       <div id="rolOk" class="form-ok" style="display:none"></div>
       <button type="submit" id="btnCrearRol" class="btn-primary" style="margin-top:14px">Crear rol</button>
@@ -449,7 +454,7 @@
 
     try {
       const { data: rol, error: errRol } = await sb
-        .from('roles').insert({ empresa_id: empresaId, nombre: nombreRol }).select().single();
+        .from('roles').insert({ empresa_id: empresaId, nombre: nombreRol, es_admin_empresa: document.getElementById('fRolEsAdmin').checked }).select().single();
       if (errRol) throw new Error(`Rol: ${errRol.message}`);
 
       const filasPermisos = permisos.map(p => ({ rol_id: rol.id, ...p }));
@@ -500,7 +505,7 @@
 
       // 3. Roles por defecto
       const { data: rolAdmin, error: errRolAdmin } = await sb
-        .from('roles').insert({ empresa_id: empresa.id, nombre: 'Administrador' }).select().single();
+        .from('roles').insert({ empresa_id: empresa.id, nombre: 'Administrador', es_admin_empresa: true }).select().single();
       if (errRolAdmin) throw new Error(`Rol Administrador: ${errRolAdmin.message}`);
 
       const { data: rolOperador, error: errRolOp } = await sb
