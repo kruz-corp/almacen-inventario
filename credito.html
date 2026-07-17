@@ -160,9 +160,12 @@
           <input type="text" id="fClienteTelefono" placeholder="70011122">
         </div>
         <div class="form-row">
-          <label>Límite de crédito (Bs)</label>
-          <input type="number" step="0.01" id="fClienteLimite" placeholder="0.00">
+          <label>Límite de crédito (Bs) — opcional</label>
+          <input type="number" step="0.01" id="fClienteLimite" placeholder="Vacío = autorizado sin monto fijo">
         </div>
+      </div>
+      <div class="hint" style="font-size:12px; color:var(--text-dim); margin:-6px 0 4px">
+        Si dejás este campo vacío, el cliente queda <b>autorizado para crédito sin un límite numérico</b>: se le puede vender a crédito sin que el sistema bloquee por monto, pero igual se le sigue llevando la cuenta (saldo y abonos).
       </div>
       <div id="clienteError" class="form-error" style="display:none"></div>
       <div class="form-actions">
@@ -344,9 +347,9 @@
       <tr onclick="abrirModalDetalle('${c.id}')">
         <td>${c.nombre}</td>
         <td>${c.telefono || '—'}</td>
-        <td style="text-align:right" class="saldo">Bs ${Number(c.limite_credito).toFixed(2)}</td>
+        <td style="text-align:right" class="saldo">${c.limite_credito > 0 ? `Bs ${Number(c.limite_credito).toFixed(2)}` : '<span style="color:var(--text-dim)">Sin límite</span>'}</td>
         <td style="text-align:right" class="saldo ${claseSaldo(c)}">Bs ${c.saldo.toFixed(2)}</td>
-        <td style="text-align:right" class="saldo ${c.disponible < 0 ? 'excedido' : 'ok'}">Bs ${c.disponible.toFixed(2)}</td>
+        <td style="text-align:right" class="saldo ${c.disponible < 0 && c.limite_credito > 0 ? 'excedido' : 'ok'}">${c.limite_credito > 0 ? `Bs ${c.disponible.toFixed(2)}` : '—'}</td>
       </tr>
     `).join('');
   }
@@ -398,10 +401,11 @@
     if (!clienteAbierto) return;
 
     document.getElementById('tituloModalDetalle').textContent = clienteAbierto.nombre;
+    const tieneLimite = clienteAbierto.limite_credito > 0;
     document.getElementById('resumenCliente').innerHTML = `
-      <div class="fila"><span class="label">Límite de crédito</span><span>Bs ${Number(clienteAbierto.limite_credito).toFixed(2)}</span></div>
+      <div class="fila"><span class="label">Límite de crédito</span><span>${tieneLimite ? `Bs ${Number(clienteAbierto.limite_credito).toFixed(2)}` : 'Autorizado sin monto fijo'}</span></div>
       <div class="fila"><span class="label">Saldo pendiente</span><span class="saldo ${claseSaldo(clienteAbierto)}">Bs ${clienteAbierto.saldo.toFixed(2)}</span></div>
-      <div class="fila"><span class="label">Disponible</span><span class="saldo ${clienteAbierto.disponible < 0 ? 'excedido' : 'ok'}">Bs ${clienteAbierto.disponible.toFixed(2)}</span></div>
+      ${tieneLimite ? `<div class="fila"><span class="label">Disponible</span><span class="saldo ${clienteAbierto.disponible < 0 ? 'excedido' : 'ok'}">Bs ${clienteAbierto.disponible.toFixed(2)}</span></div>` : ''}
     `;
 
     document.getElementById('formAbono').reset();
